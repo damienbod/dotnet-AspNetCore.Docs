@@ -1,0 +1,32 @@
+revision: 3
+schema-version: 1
+owner-ms-alias: adegeo
+
+config:
+  DocMetadata:
+    Headers:
+      - ["---", "#### "]
+
+    ParserRegex: "^\\* (.*): (.*)$"
+
+    ContentUrlRegex:
+     - "### Page URL\n\n(.*)"
+
+issues:
+
+  opened:
+    # New issue opened, add Not Triaged  
+    - labels-add: [":watch: Not Triaged"]
+
+    # default for doc comment
+    - check:
+        - type: metadata-exists
+      pass:
+        - labels-add: ["Source - Docs.ms"]
+        - prod_tech_labels: true
+
+    # technology types
+
+    # Checks for specific files
+
+    # If the word appears anywhere in the file name path, add the label

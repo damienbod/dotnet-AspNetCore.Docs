@@ -1,6 +1,9 @@
-ASP.NET Docs
-============
+# ASP.NET Core Docs
 
-This project provides the source for [docs.asp.net](http://docs.asp.net/). You can learn more about ASP.NET Core at the [Home](https://github.com/aspnet/home) repo. See the [Contributing Guide](CONTRIBUTING.md) and the [issues list](\https://github.com/aspnet/Docs/issues) if you would like to help out.
+This repository contains the ASP.NET Core documentation. See the [Contributing Guide](CONTRIBUTING.md) and the [issues list](https://github.com/dotnet/AspNetCore.Docs/issues) if you would like to help.
 
-API PR's ( *api/autoapi/...* ) should not be made here. Changes to API documentation should be made in the source repository against the triple slash /// comments. 
+API documentation changes are made in the [`dotnet/AspNetApiDocs` GitHub repository](https://github.com/dotnet/AspNetApiDocs) against the triple slash `///` comments.
+
+ASP.NET 4.x documentation changes are made in the [`dotnet/AspNetDocs` GitHub repository](https://github.com/dotnet/AspNetDocs).
+
+Issues for learn.microsoft.com can be opened at [github.com/MicrosoftDocs/feedback](https://github.com/MicrosoftDocs/feedback)

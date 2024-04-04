@@ -1,0 +1,14 @@
+{
+  "version": "0.1",
+  "language": "en",
+  "words": [
+    "antiforgery","appsettings","aspnet","aspnetcore","Blazor","Blazor's","blazorwasm","blazorserver","blazor",
+    "dotnetcli","entra","guardrex","kiota","Linq","Microservices","microservices","msal","NuGet","nuget","oidc",
+    "Prerender","prerendering","signalr","rendermode","rerender","rerenders","rerendering","riande","Routable",
+    "routable","Prerendered","prerendered","wadepickett","wasm","webassembly","webform","webforms","websocket",
+    "websockets","wwwroot"
+  ],
+  "flagWords": [
+    "hte"
+  ]
+}
