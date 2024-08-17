@@ -1,29 +1,38 @@
 ---
-title: Password Hashing | Microsoft Docs
+title: Hash passwords in ASP.NET Core
 author: rick-anderson
-description: 
-keywords: ASP.NET Core,
+description: Learn how to hash passwords using the ASP.NET Core Data Protection APIs.
 ms.author: riande
-manager: wpickett
 ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: 982a1eb2-1e6f-4909-896f-82784364472d
-ms.technology: aspnet
-ms.prod: aspnet-core
 uid: security/data-protection/consumer-apis/password-hashing
 ---
-# Password Hashing
 
-The data protection code base includes a package *Microsoft.AspNetCore.Cryptography.KeyDerivation* which contains cryptographic key derivation functions. This package is a standalone component and has no dependencies on the rest of the data protection system. It can be used completely independently. The source exists alongside the data protection code base as a convenience.
+# Hash passwords in ASP.NET Core
 
-The package currently offers a method `KeyDerivation.Pbkdf2` which allows hashing a password using the [PBKDF2 algorithm](https://tools.ietf.org/html/rfc2898#section-5.2). This API is very similar to the .NET Framework's existing [Rfc2898DeriveBytes type](https://msdn.microsoft.com/en-us/library/System.Security.Cryptography.Rfc2898DeriveBytes(v=vs.110).aspx), but there are three important distinctions:
+This article shows how to call the [`KeyDerivation.Pbkdf2`](/dotnet/api/microsoft.aspnetcore.cryptography.keyderivation.keyderivation.pbkdf2) method which allows hashing a password using the [PBKDF2 algorithm](https://tools.ietf.org/html/rfc2898#section-5.2).
 
-1. The `KeyDerivation.Pbkdf2` method supports consuming multiple PRFs (currently `HMACSHA1`, `HMACSHA256`, and `HMACSHA512`), whereas the `Rfc2898DeriveBytes` type only supports `HMACSHA1`.
+> [!WARNING]
+> The `KeyDerivation.Pbkdf2` API is a low-level cryptographic primitive and is intended to be used to integrate apps into an existing protocol or cryptographic system. `KeyDerivation.Pbkdf2` should not be used in new apps which support password based login and need to store hashed passwords in a datastore. New apps should use [`PasswordHasher`](/dotnet/api/microsoft.aspnetcore.identity.passwordhasher-1). For more information on `PasswordHasher`, see [Exploring the ASP.NET Core Identity PasswordHasher](https://andrewlock.net/exploring-the-asp-net-core-identity-passwordhasher/).
 
-2. The `KeyDerivation.Pbkdf2` method detects the current operating system and attempts to choose the most optimized implementation of the routine, providing much better performance in certain cases. (On Windows 8, it offers around 10x the throughput of `Rfc2898DeriveBytes`.)
+The data protection code base includes a NuGet package [Microsoft.AspNetCore.Cryptography.KeyDerivation](https://www.nuget.org/packages/Microsoft.AspNetCore.Cryptography.KeyDerivation/) which contains cryptographic key derivation functions. This package is a standalone component and has no dependencies on the rest of the data protection system. It can be used independently. The source exists alongside the data protection code base as a convenience.
 
-3. The `KeyDerivation.Pbkdf2` method requires the caller to specify all parameters (salt, PRF, and iteration count). The `Rfc2898DeriveBytes` type provides default values for these.
+> [!WARNING]
+> The following code shows how to use `KeyDerivation.Pbkdf2` to  generate a shared secret key. It should not be used to hash a password for storage in a datastore.
 
-[!code-csharp[Main](password-hashing/samples/passwordhasher.cs)]
+<!-- See https://github.com/dotnet/AspNetCore.Docs/pull/26253#issuecomment-1187984822 for detailed reasoning -->
 
-See the source code for ASP.NET Core Identity's `PasswordHasher` type for a real-world use case.
+:::moniker range=">= aspnetcore-6.0"
+
+[!code-csharp[](password-hashing/samples/6.x/passwordhasher.cs)]
+
+:::moniker-end
+
+:::moniker range="< aspnetcore-6.0"
+
+[!code-csharp[](password-hashing/samples/5.x/passwordhasher.cs)]
+
+:::moniker-end
+
+See the [source code](https://github.com/dotnet/AspNetCore/blob/main/src/Identity/Extensions.Core/src/PasswordHasher.cs) for ASP.NET Core Identity's `PasswordHasher` type for a real-world use case.
+
+[!INCLUDE[](~/includes/aspnetcore-repo-ref-source-links.md)]

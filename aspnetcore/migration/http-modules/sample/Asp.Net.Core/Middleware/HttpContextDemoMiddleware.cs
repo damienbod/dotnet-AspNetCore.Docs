@@ -141,9 +141,9 @@ namespace MyApp.Middleware
             // using Microsoft.Net.Http.Headers;
 
             MediaTypeHeaderValue mediaHeaderValue = requestHeaders.ContentType;
-            string contentType = mediaHeaderValue?.MediaType;   // ex. application/x-www-form-urlencoded
-            string contentMainType = mediaHeaderValue?.Type;    // ex. application
-            string contentSubType = mediaHeaderValue?.SubType;  // ex. x-www-form-urlencoded
+            string contentType = mediaHeaderValue?.MediaType.ToString();   // ex. application/x-www-form-urlencoded
+            string contentMainType = mediaHeaderValue?.Type.ToString();    // ex. application
+            string contentSubType = mediaHeaderValue?.SubType.ToString();  // ex. x-www-form-urlencoded
 
             System.Text.Encoding requestEncoding = mediaHeaderValue?.Encoding;
             #endregion
@@ -246,7 +246,7 @@ namespace MyApp.Middleware
                 // Many more properties available 
             };
 
-            // If you use .Net 4.6+, Task.CompletedTask will be a bit faster
+            // If you use .NET Framework 4.6+, Task.CompletedTask will be a bit faster
             return Task.FromResult(0);
         }
         #endregion
@@ -262,7 +262,7 @@ namespace MyApp.Middleware
             responseCookies.Append("cookie2name", "cookie2value",
                 new CookieOptions { Expires = System.DateTime.Now.AddDays(5), HttpOnly = true });
 
-            // If you use .Net 4.6+, Task.CompletedTask will be a bit faster
+            // If you use .NET Framework 4.6+, Task.CompletedTask will be a bit faster
             return Task.FromResult(0); 
         }
         #endregion
