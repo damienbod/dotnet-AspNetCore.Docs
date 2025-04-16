@@ -1,77 +1,91 @@
 ---
-title: Security | Microsoft Docs
-author: rick-anderson
-description: 
-keywords: ASP.NET Core,
-ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: a8fb7eb7-e0e5-4394-84f3-1f1dbe012345
-ms.technology: aspnet
-ms.prod: aspnet-core
+title: ASP.NET Core security topics
+author: tdykstra
+description: Provides links to articles on authentication, authorization, and security in ASP.NET Core.
+ms.author: tdykstra
+ms.custom: mvc
+ms.date: 3/9/2022
+uid: security/index
 ---
-# Security
+# ASP.NET Core security topics
 
-*   [Authentication](authentication/index.md)
-    *   [Introduction to Identity](authentication/identity.md)
-    *   [Enabling authentication using Facebook, Google and other external providers](authentication/social/index.md)
-    *   [Account Confirmation and Password Recovery](authentication/accconfirm.md)
-    *   [Two-factor authentication with SMS](authentication/2fa.md)
-    *   [🔧 Supporting Third Party Clients using OAuth 2.0](authentication/oauth2.md)
-    *   [Using Cookie Middleware without ASP.NET Core Identity](authentication/cookie.md)
-    *   [Azure Active Directory](authentication/azure-active-directory/index.md)
-        *   [Integrating Azure AD Into an ASP.NET Core Web App](https://azure.microsoft.com/documentation/samples/active-directory-dotnet-webapp-openidconnect-aspnetcore)
-        *   [Calling a ASP.NET Core Web API From a WPF Application Using Azure AD](https://azure.microsoft.com/documentation/samples/active-directory-dotnet-native-aspnetcore)
-        *   [Calling a Web API in an ASP.NET Core Web Application Using Azure AD](https://azure.microsoft.com/en-us/documentation/samples/active-directory-dotnet-webapp-webapi-openidconnect-aspnetcore/)
-        *   [An ASP.NET Core web app with Azure AD B2C](https://azure.microsoft.com/en-us/documentation/samples/active-directory-dotnet-webapp-openidconnect-aspnetcore-b2c/)
-    *   [Securing ASP.NET Core apps with IdentityServer4](https://identityserver4.readthedocs.io)
-*   [Authorization](authorization/index.md)
-    *   [Introduction](authorization/introduction.md)
-    *   [Simple Authorization](authorization/simple.md)
-    *   [Role based Authorization](authorization/roles.md)
-    *   [Claims-Based Authorization](authorization/claims.md)
-    *   [Custom Policy-Based Authorization](authorization/policies.md)
-    *   [Dependency Injection in requirement handlers](authorization/dependencyinjection.md)
-    *   [Resource Based Authorization](authorization/resourcebased.md)
-    *   [View Based Authorization](authorization/views.md)
-    *   [Limiting identity by scheme](authorization/limitingidentitybyscheme.md)
-    *   [🔧 Authorization Filters](authorization/authorization-filters.md)
-*   [Data Protection](data-protection/index.md)
-    *   [Introduction to Data Protection](data-protection/introduction.md)
-    *   [Getting Started with the Data Protection APIs](data-protection/using-data-protection.md)
-    *   [Consumer APIs](data-protection/consumer-apis/index.md)
-        *   [Consumer APIs Overview](data-protection/consumer-apis/overview.md)
-        *   [Purpose Strings](data-protection/consumer-apis/purpose-strings.md)
-        *   [Purpose hierarchy and multi-tenancy](data-protection/consumer-apis/purpose-strings-multitenancy.md)
-        *   [Password Hashing](data-protection/consumer-apis/password-hashing.md)
-        *   [Limiting the lifetime of protected payloads](data-protection/consumer-apis/limited-lifetime-payloads.md)
-        *   [Unprotecting payloads whose keys have been revoked](data-protection/consumer-apis/dangerous-unprotect.md)
-    *   [Configuration](data-protection/configuration/index.md)
-        *   [Configuring Data Protection](data-protection/configuration/overview.md)
-        *   [Default Settings](data-protection/configuration/default-settings.md)
-        *   [Machine Wide Policy](data-protection/configuration/machine-wide-policy.md)
-        *   [Non DI Aware Scenarios](data-protection/configuration/non-di-scenarios.md)
-    *   [Extensibility APIs](data-protection/extensibility/index.md)
-        *   [Core cryptography extensibility](data-protection/extensibility/core-crypto.md)
-        *   [Key management extensibility](data-protection/extensibility/key-management.md)
-        *   [Miscellaneous APIs](data-protection/extensibility/misc-apis.md)
-    *   [Implementation](data-protection/implementation/index.md)
-        *   [Authenticated encryption details.](data-protection/implementation/authenticated-encryption-details.md)
-        *   [Subkey Derivation and Authenticated Encryption](data-protection/implementation/subkeyderivation.md)
-        *   [Context headers](data-protection/implementation/context-headers.md)
-        *   [Key Management](data-protection/implementation/key-management.md)
-        *   [Key Storage Providers](data-protection/implementation/key-storage-providers.md)
-        *   [Key Encryption At Rest](data-protection/implementation/key-encryption-at-rest.md)
-        *   [Key Immutability and Changing Settings](data-protection/implementation/key-immutability.md)
-        *   [Key Storage Format](data-protection/implementation/key-storage-format.md)
-        *   [Ephemeral data protection providers](data-protection/implementation/key-storage-ephemeral.md)
-    *   [Compatibility](data-protection/compatibility/index.md)
-        *   [Sharing cookies between applications](data-protection/compatibility/cookie-sharing.md)
-        *   [Replacing <machineKey> in ASP.NET](data-protection/compatibility/replacing-machinekey.md)
-*   [Safe storage of app secrets during development](app-secrets.md)
-*   [🔧 Enforcing SSL](enforcing-ssl.md)
-*   [🔧 Anti-Request Forgery](anti-request-forgery.md)
-*   [🔧 Preventing Open Redirect Attacks](open-redirect.md)
-*   [Preventing Cross-Site Scripting](cross-site-scripting.md)
-*   [Enabling Cross-Origin Requests (CORS)](cors.md)
+ASP.NET Core enables developers to configure and manage security. The following list provides links to security topics:
+
+* [Authentication](xref:security/authentication/index)
+* [Authorization](xref:security/authorization/introduction)
+* [Data protection](xref:security/data-protection/introduction)
+* [HTTPS enforcement](xref:security/enforcing-ssl)
+* [Safe storage of app secrets in development](xref:security/app-secrets)
+* [XSRF/CSRF prevention](xref:security/anti-request-forgery)
+* [Cross Origin Resource Sharing (CORS)](xref:security/cors)
+* [Cross-Site Scripting (XSS) attacks](xref:security/cross-site-scripting)
+
+These security features allow you to build robust and secure ASP.NET Core apps.
+
+For Blazor security coverage, which adds to or supersedes the guidance in this node, see <xref:blazor/security/index> and the other articles in Blazor's *Security and Identity* node.
+
+## ASP.NET Core security features
+
+ASP.NET Core provides many tools and libraries to secure ASP.NET Core apps such as built-in identity providers and third-party identity services such as Facebook, Twitter, and LinkedIn. ASP.NET Core provides several approaches to store app secrets.
+
+## Authentication vs. Authorization
+
+[Authentication](xref:security/authentication/index) is a process in which a user provides credentials that are then compared to those stored in an operating system, database, app or resource. If they match, users authenticate successfully, and can then perform actions that they're authorized for, during an [authorization](xref:security/authorization/introduction) process. The authorization refers to the process that determines what a user is allowed to do.
+
+Another way to think of authentication is to consider it as a way to enter a space, such as a server, database, app or resource, while authorization is which actions the user can perform to which objects inside that space (server, database, or app).
+
+## Common Vulnerabilities in software
+
+ASP.NET Core and EF contain features that help you secure your apps and prevent security breaches. The following list of links takes you to documentation detailing techniques to avoid the most common security vulnerabilities in web apps:
+
+* [Cross-Site Scripting (XSS) attacks](xref:security/cross-site-scripting)
+* [SQL injection attacks](/ef/core/querying/raw-sql)
+* [Cross-Site Request Forgery (XSRF/CSRF) attacks](xref:security/anti-request-forgery)
+* [Open redirect attacks](xref:security/preventing-open-redirects)
+
+There are more vulnerabilities that you should be aware of. For more information, see the other articles in the **Security and Identity** section of the table of contents.
+
+## Secure authentication flows
+
+We recommend using the most secure authentication option. For Azure services, the most secure authentication is [managed identities](/entra/identity/managed-identities-azure-resources/overview).
+
+Avoid Resource Owner Password Credentials Grant because it:
+
+* Exposes the user's password to the client.
+* Is a significant security risk.
+* Should only be used when other authentication flows are not possible.
+
+Managed identities are a secure way to authenticate to services without needing to store credentials in code, environment variables, or configuration files. Managed identities are available for Azure services, and can be used with Azure SQL, Azure Storage, and other Azure services:
+
+* [Managed identities in Microsoft Entra for Azure SQL](/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity)
+* [Managed identities for App Service and Azure Functions](/azure/app-service/overview-managed-identity)
+* [Secure authentication flows](/entra/identity-platform/authentication-flows-app-scenarios#web-app-that-signs-in-a-user)
+
+When the app is deployed to a test server, an environment variable can be used to set the connection string to a test database server. For more information, see [Configuration](xref:fundamentals/configuration/index). Environment variables are generally stored in plain, unencrypted text. If the machine or process is compromised, environment variables can be accessed by untrusted parties. We recommend against using environment variables to store a production connection string as it's not the most secure approach.
+
+Configuration data guidelines:
+
+* Never store passwords or other sensitive data in configuration provider code or in plain text configuration files. The [Secret Manager](xref:security/app-secrets) tool can be used to store secrets in development.
+* Don't use production secrets in development or test environments.
+* Specify secrets outside of the project so that they can't be accidentally committed to a source code repository.
+
+For more information, see:
+
+* [Managed identity best practice recommendations](/entra/identity/managed-identities-azure-resources/managed-identity-best-practice-recommendations)
+* [Connecting from your application to resources without handling credentials in your code](/entra/identity/managed-identities-azure-resources/overview-for-developers?tabs=portal%2Cdotnet)
+* [Azure services that can use managed identities to access other services](/entra/identity/managed-identities-azure-resources/managed-identities-status)
+* [IETF OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics#section-2.4)
+
+For information on other cloud providers, see:
+
+* [AWS (Amazon Web Services): AWS Key Management Service (KMS)](https://aws.amazon.com/kms/)
+* [Google Cloud Key Management Service overview](https://cloud.google.com/kms/docs/key-management-service)
+
+[!INCLUDE[](~/includes/reliableWAP_H2.md)]
+
+## Additional resources
+
+* <xref:security/authentication/identity>
+* <xref:security/authentication/identity-enable-qrcodes>
+* <xref:security/authentication/social/index> 
+* <xref:security/identity-management-solutions>

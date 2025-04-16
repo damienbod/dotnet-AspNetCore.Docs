@@ -42,7 +42,7 @@ namespace ContosoUniversity.Controllers
 
             var department = await _context.Departments
                 .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.DepartmentID == id);
+                .FirstOrDefaultAsync(m => m.DepartmentID == id);
             if (department == null)
             {
                 return NotFound();
@@ -51,7 +51,7 @@ namespace ContosoUniversity.Controllers
             return View(department);
         }
 #elif RawSQL
-        #region snippet_RawSQL
+// <snippet_RawSQL>
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -64,7 +64,7 @@ namespace ContosoUniversity.Controllers
                 .FromSql(query, id)
                 .Include(d => d.Administrator)
                 .AsNoTracking()
-                .SingleOrDefaultAsync();
+                .FirstOrDefaultAsync();
 
             if (department == null)
             {
@@ -73,7 +73,7 @@ namespace ContosoUniversity.Controllers
 
             return View(department);
         }
-        #endregion
+// </snippet_RawSQL>
 #endif
 
         // GET: Departments/Create
@@ -92,11 +92,11 @@ namespace ContosoUniversity.Controllers
             {
                 _context.Add(department);
                 await _context.SaveChangesAsync();
-                return RedirectToAction("Index");
+                return RedirectToAction(nameof(Index));
             }
-            #region snippet_Dropdown
+// <snippet_Dropdown>
             ViewData["InstructorID"] = new SelectList(_context.Instructors, "ID", "FullName", department.InstructorID);
-            #endregion
+// </snippet_Dropdown>
             return View(department);
         }
 
@@ -108,12 +108,12 @@ namespace ContosoUniversity.Controllers
                 return NotFound();
             }
 
-            #region snippet_EagerLoading
+// <snippet_EagerLoading>
             var department = await _context.Departments
                 .Include(i => i.Administrator)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.DepartmentID == id);
-            #endregion
+                .FirstOrDefaultAsync(m => m.DepartmentID == id);
+// </snippet_EagerLoading>
             if (department == null)
             {
                 return NotFound();
@@ -125,7 +125,7 @@ namespace ContosoUniversity.Controllers
         // POST: Departments/Edit/5
         // To protect from overposting attacks, please enable the specific properties you want to bind to, for 
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
-        #region snippet_EditPost
+// <snippet_EditPost>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int? id, byte[] rowVersion)
@@ -135,7 +135,7 @@ namespace ContosoUniversity.Controllers
                 return NotFound();
             }
 
-            var departmentToUpdate = await _context.Departments.Include(i => i.Administrator).SingleOrDefaultAsync(m => m.DepartmentID == id);
+            var departmentToUpdate = await _context.Departments.Include(i => i.Administrator).FirstOrDefaultAsync(m => m.DepartmentID == id);
 
             if (departmentToUpdate == null)
             {
@@ -157,60 +157,57 @@ namespace ContosoUniversity.Controllers
                 try
                 {
                     await _context.SaveChangesAsync();
-                    return RedirectToAction("Index");
+                    return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException ex)
                 {
                     var exceptionEntry = ex.Entries.Single();
-                    // Using a NoTracking query means we get the entity but it is not tracked by the context
-                    // and will not be merged with existing entities in the context.
-                    var databaseEntity = await _context.Departments
-                        .AsNoTracking()
-                        .SingleAsync(d => d.DepartmentID == ((Department)exceptionEntry.Entity).DepartmentID);
-                    var databaseEntry = _context.Entry(databaseEntity);
+                    var clientValues = (Department)exceptionEntry.Entity;
+                    var databaseEntry = exceptionEntry.GetDatabaseValues();
+                    if (databaseEntry == null)
+                    {
+                        ModelState.AddModelError(string.Empty,
+                            "Unable to save changes. The department was deleted by another user.");
+                    }
+                    else
+                    {
+                        var databaseValues = (Department)databaseEntry.ToObject();
 
-                    var databaseName = (string)databaseEntry.Property("Name").CurrentValue;
-                    var proposedName = (string)exceptionEntry.Property("Name").CurrentValue;
-                    if (databaseName != proposedName)
-                    {
-                        ModelState.AddModelError("Name", $"Current value: {databaseName}");
-                    }
-                    var databaseBudget = (Decimal)databaseEntry.Property("Budget").CurrentValue;
-                    var proposedBudget = (Decimal)exceptionEntry.Property("Budget").CurrentValue;
-                    if (databaseBudget != proposedBudget)
-                    {
-                        ModelState.AddModelError("Budget", $"Current value: {databaseBudget:c}");
-                    }
-                    var databaseStartDate = (DateTime)databaseEntry.Property("StartDate").CurrentValue;
-                    var proposedStartDate = (DateTime)exceptionEntry.Property("StartDate").CurrentValue;
-                    if (databaseStartDate != proposedStartDate)
-                    {
-                        ModelState.AddModelError("StartDate", $"Current value: {databaseStartDate:d}");
-                    }
-                    var databaseInstructorID = (int)databaseEntry.Property("InstructorID").CurrentValue;
-                    var proposedInstructorID = (int)exceptionEntry.Property("InstructorID").CurrentValue;
-                    if (databaseInstructorID != proposedInstructorID)
-                    {
-                        Instructor databaseInstructor = await _context.Instructors.SingleAsync(i => i.ID == databaseInstructorID);
-                        ModelState.AddModelError("InstructorID", $"Current value: {databaseInstructor.FullName}");
-                    }
+                        if (databaseValues.Name != clientValues.Name)
+                        {
+                            ModelState.AddModelError("Name", $"Current value: {databaseValues.Name}");
+                        }
+                        if (databaseValues.Budget != clientValues.Budget)
+                        {
+                            ModelState.AddModelError("Budget", $"Current value: {databaseValues.Budget:c}");
+                        }
+                        if (databaseValues.StartDate != clientValues.StartDate)
+                        {
+                            ModelState.AddModelError("StartDate", $"Current value: {databaseValues.StartDate:d}");
+                        }
+                        if (databaseValues.InstructorID != clientValues.InstructorID)
+                        {
+                            Instructor databaseInstructor = await _context.Instructors.FirstOrDefaultAsync(i => i.ID == databaseValues.InstructorID);
+                            ModelState.AddModelError("InstructorID", $"Current value: {databaseInstructor?.FullName}");
+                        }
 
-                    ModelState.AddModelError(string.Empty, "The record you attempted to edit "
-                            + "was modified by another user after you got the original value. The "
-                            + "edit operation was canceled and the current values in the database "
-                            + "have been displayed. If you still want to edit this record, click "
-                            + "the Save button again. Otherwise click the Back to List hyperlink.");
-                    departmentToUpdate.RowVersion = (byte[])databaseEntry.Property("RowVersion").CurrentValue;
-                    ModelState.Remove("RowVersion");
+                        ModelState.AddModelError(string.Empty, "The record you attempted to edit "
+                                + "was modified by another user after you got the original value. The "
+                                + "edit operation was canceled and the current values in the database "
+                                + "have been displayed. If you still want to edit this record, click "
+                                + "the Save button again. Otherwise click the Back to List hyperlink.");
+                        departmentToUpdate.RowVersion = (byte[])databaseValues.RowVersion;
+                        ModelState.Remove("RowVersion");
+                    }
                 }
             }
             ViewData["InstructorID"] = new SelectList(_context.Instructors, "ID", "FullName", departmentToUpdate.InstructorID);
             return View(departmentToUpdate);
         }
-        #endregion
+// </snippet_EditPost>
 
         // GET: Departments/Delete/5
-        #region snippet_DeleteGet
+// <snippet_DeleteGet>
         public async Task<IActionResult> Delete(int? id, bool? concurrencyError)
         {
             if (id == null)
@@ -221,12 +218,12 @@ namespace ContosoUniversity.Controllers
             var department = await _context.Departments
                 .Include(d => d.Administrator)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.DepartmentID == id);
+                .FirstOrDefaultAsync(m => m.DepartmentID == id);
             if (department == null)
             {
                 if (concurrencyError.GetValueOrDefault())
                 {
-                    return RedirectToAction("Index");
+                    return RedirectToAction(nameof(Index));
                 }
                 return NotFound();
             }
@@ -243,10 +240,10 @@ namespace ContosoUniversity.Controllers
 
             return View(department);
         }
-        #endregion
+// </snippet_DeleteGet>
 
         // POST: Departments/Delete/5
-        #region snippet_DeletePost
+// <snippet_DeletePost>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(Department department)
@@ -258,14 +255,14 @@ namespace ContosoUniversity.Controllers
                     _context.Departments.Remove(department);
                     await _context.SaveChangesAsync();
                 }
-                return RedirectToAction("Index");
+                return RedirectToAction(nameof(Index));
             }
             catch (DbUpdateConcurrencyException /* ex */)
             {
                 //Log the error (uncomment ex variable name and write a log.)
-                return RedirectToAction("Delete", new { concurrencyError = true, id = department.DepartmentID });
+                return RedirectToAction(nameof(Delete), new { concurrencyError = true, id = department.DepartmentID });
             }
         }
-        #endregion
+// </snippet_DeletePost>
     }
 }

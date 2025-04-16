@@ -1,108 +1,82 @@
 ---
-title: Dependency Injection and Controllers | Microsoft Docs
+title: Dependency injection into controllers in ASP.NET Core
 author: ardalis
-description: 
-keywords: ASP.NET Core,
-ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: bc8b4ba3-e9ba-48fd-b1eb-cd48ff6bc7a1
-ms.technology: aspnet
-ms.prod: aspnet-core
+description: Discover how ASP.NET Core MVC controllers request their dependencies explicitly via their constructors with dependency injection in ASP.NET Core.
+ms.author: tdykstra
+ms.date: 10/13/2022
 uid: mvc/controllers/dependency-injection
 ---
-# Dependency Injection and Controllers
+# Dependency injection into controllers in ASP.NET Core
 
-<a name=dependency-injection-controllers></a>
+:::moniker range=">= aspnetcore-8.0"
 
-By [Steve Smith](http://ardalis.com)
+By [Shadi Alnamrouti](https://stackoverflow.com/users/3380497/shadi-alnamrouti) and [Rick Anderson](https://twitter.com/RickAndMSFT)
 
-ASP.NET Core MVC controllers should request their dependencies explicitly via their constructors. In some instances, individual controller actions may require a service, and it may not make sense to request at the controller level. In this case, you can also choose to inject a service as a parameter on the action method.
+<!-- @shadialnamrouti -->
+ASP.NET Core MVC controllers request dependencies explicitly via constructors. ASP.NET Core has built-in support for [dependency injection (DI)](xref:fundamentals/dependency-injection). DI makes apps easier to test and maintain.
 
-[View or download sample code](https://github.com/aspnet/Docs/tree/master/aspnetcore/mvc/controllers/dependency-injection/sample)
+[View or download sample code](https://github.com/dotnet/AspNetCore.Docs/tree/main/aspnetcore/mvc/controllers/dependency-injection/sample) ([how to download](xref:index#how-to-download-a-sample))
 
-## Dependency Injection
+## Constructor injection
 
-Dependency injection is a technique that follows the [Dependency Inversion Principle](http://deviq.com/dependency-inversion-principle), allowing for applications to be composed of loosely coupled modules. ASP.NET Core has built-in support for [dependency injection](../../fundamentals/dependency-injection.md), which makes applications easier to test and maintain.
+Services are added as a constructor parameter, and the runtime resolves the service from the service container. Services are typically defined using interfaces. For example, consider an app that requires the current time. The following interface exposes the `IDateTime` service:
 
-## Constructor Injection
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Interfaces/IDateTime.cs?name=snippet)]
 
-ASP.NET Core's built-in support for constructor-based dependency injection extends to MVC controllers. By simply adding a service type to your controller as a constructor parameter, ASP.NET Core will attempt to resolve that type using its built in service container. Services are typically, but not always, defined using interfaces. For example, if your application has business logic that depends on the current time, you can inject a service that retrieves the time (rather than hard-coding it), which would allow your tests to pass in implementations that use a set time.
+The following code implements the `IDateTime` interface:
 
-[!code-csharp[Main](dependency-injection/sample/src/ControllerDI/Interfaces/IDateTime.cs)]
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Services/SystemDateTime.cs?name=snippet)]
 
+Add the service to the service container:
 
-Implementing an interface like this one so that it uses the system clock at runtime is trivial:
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Startup1.cs?name=snippet&highlight=3)]
 
-[!code-csharp[Main](dependency-injection/sample/src/ControllerDI/Services/SystemDateTime.cs)]
+For more information on <xref:Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton*>, see [DI service lifetimes](xref:fundamentals/dependency-injection#service-lifetimes).
 
+The following code displays a greeting to the user based on the time of day:
 
-With this in place, we can use the service in our controller. In this case, we have added some logic to the `HomeController` `Index` method to display a greeting to the user based on the time of day.
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Controllers/HomeController.cs?name=snippet)]
 
-[!code-csharp[Main](./dependency-injection/sample/src/ControllerDI/Controllers/HomeController.cs?highlight=8,10,12,17,18,19,20,21,22,23,24,25,26,27,28,29,30&range=1-31,51-52)]
+Run the app and a message is displayed based on the time.
 
-If we run the application now, we will most likely encounter an error:
+## Action injection with `FromServices`
 
-<!-- literal_block {"ids": [], "xml:space": "preserve"} -->
+The <xref:Microsoft.AspNetCore.Mvc.FromServicesAttribute> enables injecting a service directly into an action method without using constructor injection:
 
-```
-An unhandled exception occurred while processing the request.
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Controllers/HomeController.cs?name=snippet2)]
 
-InvalidOperationException: Unable to resolve service for type 'ControllerDI.Interfaces.IDateTime' while attempting to activate 'ControllerDI.Controllers.HomeController'.
-Microsoft.Extensions.DependencyInjection.ActivatorUtilities.GetService(IServiceProvider sp, Type type, Type requiredBy, Boolean isDefaultParameterRequired)
-```
+## Action injection with `FromKeyedServices`
 
-This error occurs when we have not configured a service in the `ConfigureServices` method in our `Startup` class. To specify that requests for `IDateTime` should be resolved using an instance of `SystemDateTime`, add the highlighted line in the listing below to your `ConfigureServices` method:
+The following code shows how to access keyed services from the DI container by using the [`[FromKeyedServices]`](xref:Microsoft.Extensions.DependencyInjection.FromKeyedServicesAttribute) attribute:
 
-[!code-csharp[Main](./dependency-injection/sample/src/ControllerDI/Startup.cs?highlight=4&range=26-27,42-44)]
+:::code language="csharp" source="~/../AspNetCore.Docs.Samples/fundamentals/minimal-apis/samples/KeyServiceController/Program.cs" :::
 
-> [!NOTE]
-> This particular service could be implemented using any of several different lifetime options (`Transient`, `Scoped`, or `Singleton`). See [Dependency Injection](../../fundamentals/dependency-injection.md) to understand how each of these scope options will affect the behavior of your service.
+## Access settings from a controller
 
-Once the service has been configured, running the application and navigating to the home page should display the time-based message as expected:
+Accessing app or configuration settings from within a controller is a common pattern. The *options pattern* described in <xref:fundamentals/configuration/options> is the preferred approach to manage settings. Generally, don't directly inject <xref:Microsoft.Extensions.Configuration.IConfiguration> into a controller.
 
-![image](dependency-injection/_static/server-greeting.png)
+Create a class that represents the options. For example:
 
->[!TIP]
-> See [Testing Controller Logic](testing.md) to learn how to explicitly request dependencies [http://deviq.com/explicit-dependencies-principle](http://deviq.com/explicit-dependencies-principle) in controllers makes code easier to test.
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Models/SampleWebSettings.cs?name=snippet)]
 
-ASP.NET Core's built-in dependency injection supports having only a single constructor for classes requesting services. If you have more than one constructor, you may get an exception stating:
+Add the configuration class to the services collection:
 
-<!-- literal_block {"ids": [], "xml:space": "preserve"} -->
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Startup.cs?highlight=4&name=snippet1)]
 
-```
-An unhandled exception occurred while processing the request.
+Configure the app to read the settings from a JSON-formatted file:
 
-InvalidOperationException: Multiple constructors accepting all given argument types have been found in type 'ControllerDI.Controllers.HomeController'. There should only be one applicable constructor.
-Microsoft.Extensions.DependencyInjection.ActivatorUtilities.FindApplicableConstructor(Type instanceType, Type[] argumentTypes, ConstructorInfo& matchingConstructor, Nullable`1[]& parameterMap)
-```
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Program.cs?name=snippet&range=10-15)]
 
-As the error message states, you can correct this problem having just a single constructor. You can also [replace the default dependency injection support with a third party implementation](../../fundamentals/dependency-injection.md#replacing-the-default-services-container), many of which support multiple constructors.
+The following code requests the `IOptions<SampleWebSettings>` settings from the service container and uses them in the `Index` method:
 
-## Action Injection with FromServices
+[!code-csharp[](~/mvc/controllers/dependency-injection/3.1sample/ControllerDI/Controllers/SettingsController.cs?name=snippet)]
 
-Sometimes you don't need a service for more than one action within your controller. In this case, it may make sense to inject the service as a parameter to the action method. This is done by marking the parameter with the attribute `[FromServices]` as shown here:
+## Additional resources
 
-[!code-csharp[Main](./dependency-injection/sample/src/ControllerDI/Controllers/HomeController.cs?highlight=1&range=33-38)]
+* See <xref:mvc/controllers/testing> to learn how to make code easier to test by explicitly requesting dependencies in controllers.
+* [Keyed service dependency injection container support](https://andrewlock.net/exploring-the-dotnet-8-preview-keyed-services-dependency-injection-support/)
+* [Replace the default dependency injection container with a third party implementation](xref:fundamentals/dependency-injection#default-service-container-replacement).
 
-## Accessing Settings from a Controller
+:::moniker-end
 
-Accessing application or configuration settings from within a controller is a common pattern. This access should use the Options pattern described in [configuration](../../fundamentals/configuration.md). You generally should not request settings directly from your controller using dependency injection. A better approach is to request an `IOptions<T>` instance, where `T` is the configuration class you need.
-
-To work with the options pattern, you need to create a class that represents the options, such as this one:
-
-[!code-csharp[Main](dependency-injection/sample/src/ControllerDI/Model/SampleWebSettings.cs)]
-
-Then you need to configure the application to use the options model and add your configuration class to the services collection in `ConfigureServices`:
-
-[!code-csharp[Main](./dependency-injection/sample/src/ControllerDI/Startup.cs?highlight=3,4,5,6,9,16,19&range=14-44)]
-
-> [!NOTE]
-> In the above listing, we are configuring the application to read the settings from a JSON-formatted file. You can also configure the settings entirely in code, as is shown in the commented code above. See [Configuration](../../fundamentals/configuration.md) for further configuration options.
-
-Once you've specified a strongly-typed configuration object (in this case, `SampleWebSettings`) and added it to the services collection, you can request it from any Controller or Action method by requesting an instance of `IOptions<T>` (in this case, `IOptions<SampleWebSettings>`). The following code shows how one would request the settings from a controller:
-
-[!code-csharp[Main](./dependency-injection/sample/src/ControllerDI/Controllers/SettingsController.cs?highlight=3,5,7&range=7-22)]
-
-Following the Options pattern allows settings and configuration to be decoupled from one another, and ensures the controller is following [separation of concerns](http://deviq.com/separation-of-concerns/), since it doesn't need to know how or where to find the settings information. It also makes the controller easier to unit test [Testing Controller Logic](testing.md), since there is no [static cling](http://deviq.com/static-cling/) or direct instantiation of settings classes within the controller class.
+[!INCLUDE[](~/mvc/controllers/includes/dependency-injection7.md)]

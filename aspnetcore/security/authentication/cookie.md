@@ -1,186 +1,402 @@
 ---
-title: Using Cookie Middleware without ASP.NET Core Identity | Microsoft Docs
+title: Use cookie authentication without ASP.NET Core Identity
 author: rick-anderson
-description: 
-keywords: ASP.NET Core,
+description: Learn how to use cookie authentication without ASP.NET Core Identity.
+monikerRange: '>= aspnetcore-3.1'
 ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: 2bdcbf95-8d9d-4537-a4a0-a5ee439dcb62
-ms.technology: aspnet
-ms.prod: aspnet-core
+ms.date: 1/1/2022
 uid: security/authentication/cookie
 ---
-# Using Cookie Middleware without ASP.NET Core Identity
+# Use cookie authentication without ASP.NET Core Identity
 
-<a name=security-authentication-cookie-middleware></a>
+By [Rick Anderson](https://twitter.com/RickAndMSFT)
 
-ASP.NET Core provides cookie [middleware](../../fundamentals/middleware.md#fundamentals-middleware) which serializes a user principal into an encrypted cookie and then, on subsequent requests, validates the cookie, recreates the principal and assigns it to the `User` property on `HttpContext`. If you want to provide your own login screens and user databases you can use the cookie middleware as a standalone feature.
+:::moniker range=">= aspnetcore-6.0"
 
-<a name=security-authentication-cookie-middleware-configuring></a>
+[ASP.NET Core Identity](xref:security/authentication/identity) is a complete, full-featured authentication provider for creating and maintaining logins. However, a cookie-based authentication provider without ASP.NET Core Identity can be used. For more information, see <xref:security/authentication/identity>.
 
-## Adding and configuring
+[View or download sample code](https://github.com/dotnet/AspNetCore.Docs/tree/main/aspnetcore/security/authentication/cookie/samples) ([how to download](xref:index#how-to-download-a-sample))
 
-The first step is adding the cookie middleware to your application. First use nuget to add the `Microsoft.AspNetCore.Authentication.Cookies` package. Then add the following lines to the `Configure` method in your *Startup.cs* file before the `app.UseMvc()` statement;
+For demonstration purposes in the sample app, the user account for the hypothetical user, Maria Rodriguez, is hardcoded into the app. Use the **Email** address `maria.rodriguez@contoso.com` and any password to sign in the user. The user is authenticated in the `AuthenticateUser` method in the `Pages/Account/Login.cshtml.cs` file. In a real-world example, the user would be authenticated against a datastore.
 
-```csharp
-app.UseCookieAuthentication(new CookieAuthenticationOptions()
-   {
-       AuthenticationScheme = "MyCookieMiddlewareInstance",
-       LoginPath = new PathString("/Account/Unauthorized/"),
-       AccessDeniedPath = new PathString("/Account/Forbidden/"),
-       AutomaticAuthenticate = true,
-       AutomaticChallenge = true
-   });
-   ```
+## Add cookie authentication
 
-The code snippet above configures a few options;
+* Add the Authentication Middleware services with the <xref:Microsoft.Extensions.DependencyInjection.AuthenticationServiceCollectionExtensions.AddAuthentication%2A> and <xref:Microsoft.Extensions.DependencyInjection.CookieExtensions.AddCookie%2A> methods.
+* Call <xref:Microsoft.AspNetCore.Builder.AuthAppBuilderExtensions.UseAuthentication%2A> and <xref:Microsoft.AspNetCore.Builder.AuthorizationAppBuilderExtensions.UseAuthorization%2A> to set the `HttpContext.User` property and run the Authorization Middleware for requests. `UseAuthentication` and `UseAuthorization` must be called before `Map` methods such as <xref:Microsoft.AspNetCore.Builder.RazorPagesEndpointRouteBuilderExtensions.MapRazorPages%2A> and <xref:Microsoft.AspNetCore.Builder.ControllerEndpointRouteBuilderExtensions.MapDefaultControllerRoute%2A>
 
-* AuthenticationScheme - this is a value by which the middleware is known. This is useful when there are multiple instances of middleware and you want to [limit authorization to one instance](../authorization/limitingidentitybyscheme.md#security-authorization-limiting-by-scheme).
+[!code-csharp[](cookie/samples/6.x/CookieSample/Program.cs?name=snippet1&highlight=8-9,24-28)]
 
-* LoginPath - this is the relative path requests will be redirected to when a user attempts to access a resource but has not been authenticated.
+<xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme> passed to `AddAuthentication` sets the default authentication scheme for the app. `AuthenticationScheme` is useful when there are multiple instances of cookie authentication and the app needs to [authorize with a specific scheme](xref:security/authorization/limitingidentitybyscheme). Setting the `AuthenticationScheme` to [CookieAuthenticationDefaults.AuthenticationScheme](xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme) provides a value of `"Cookies"` for the scheme. Any string value can be used that distinguishes the scheme.
 
-* AccessDeniedPath - this is the relative path requests will be redirected to when a user attempts to access a resource but does not pass any [authorization policies](../authorization/policies.md#security-authorization-policies-based) for that resource.
+The app's authentication scheme is different from the app's cookie authentication scheme. When a cookie authentication scheme isn't provided to <xref:Microsoft.Extensions.DependencyInjection.CookieExtensions.AddCookie*>, it uses [`CookieAuthenticationDefaults.AuthenticationScheme`](xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme). [The `CookieAuthenticationDefaults.AuthenticationScheme` GitHub Source](https://github.com/dotnet/aspnetcore/blob/v6.0.1/src/Security/Authentication/Cookies/src/CookieAuthenticationDefaults.cs#L16) shows it's set to `"Cookies"`.
 
-* AutomaticAuthenticate - this flag indicates that the middleware should run on every request and attempt to validate and reconstruct any serialized principal it created.
+The authentication cookie's <xref:Microsoft.AspNetCore.Http.CookieBuilder.IsEssential> property is set to `true` by default. Authentication cookies are allowed when a site visitor hasn't consented to data collection. For more information, see <xref:security/gdpr#essential-cookies>.
 
-* AutomaticChallenge - this flag indicates that the middleware should redirect the browser to the `LoginPath` or `AccessDeniedPath` when authorization fails.
+The <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> class is used to configure the authentication provider options.
 
-[Other options](xref:security/authentication/cookie#security-authentication-cookie-options) include the ability to set the issuer for any claims the middleware creates, the name of the cookie the middleware drops, the domain for the cookie and various security properties on the cookie. By default the cookie middleware will use appropriate security options for any cookies it creates, setting HTTPONLY to avoid the cookie being accessible in client side JavaScript and limiting the cookie to HTTPS if a request has come over HTTPS.
+Configure <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> in the <xref:Microsoft.Extensions.DependencyInjection.CookieExtensions.AddCookie%2A> method:
 
-<a name=security-authentication-cookie-middleware-creating-a-cookie></a>
+[!code-csharp[](cookie/samples/6.x/CookieSample/Program.cs?name=snippet2&highlight=8-14)]
 
-## Creating an identity cookie
+## Cookie Policy Middleware
 
-To create a cookie holding your user information you must construct a [ClaimsPrincipal](https://msdn.microsoft.com/en-us/library/system.security.claims.claimsprincipal(v=vs.110).aspx) holding the information you wish to be serialized in the cookie. Once you have a suitable *ClaimsPrincipal* inside your controller method call
-
-
-   ```csharp
-   await HttpContext.Authentication.SignInAsync("MyCookieMiddlewareInstance", principal);
-      ```
-
-This will create an encrypted cookie and add it to the current response. The `AuthenticationScheme` specified during [configuration](xref:security/authentication/cookie#security-authentication-cookie-middleware-configuring) must also be used when calling `SignInAsync`.
-
-Under the covers the encryption used is ASP.NET's [Data Protection](../data-protection/using-data-protection.md#security-data-protection-getting-started) system. If you are hosting on multiple machines, load balancing or using a web farm then you will need to [configure](../data-protection/configuration/overview.md#data-protection-configuring) data protection to use the same key ring and application identifier.
-
-## Signing out
-
-To sign out the current user, and delete their cookie call the following inside your controller
+The 
+[Cookie Policy Middleware (GitHub Source)](https://github.com/dotnet/aspnetcore/blob/main/src/Security/CookiePolicy/src/CookiePolicyMiddleware.cs) <xref:Microsoft.AspNetCore.Builder.CookiePolicyAppBuilderExtensions.UseCookiePolicy%2A> enables cookie policy capabilities. Middleware is processed in the order it's added:
 
 ```csharp
-await HttpContext.Authentication.SignOutAsync("MyCookieMiddlewareInstance");
-   ```
+app.UseCookiePolicy(cookiePolicyOptions);
+```
 
-## Reacting to back-end changes
+Use <xref:Microsoft.AspNetCore.Builder.CookiePolicyOptions> provided to the Cookie Policy Middleware to control global characteristics of cookie processing and hook into cookie processing handlers when cookies are appended or deleted.
 
->[!WARNING]
-> Once a principal cookie has been created it becomes the single source of identity - even if you disable a user in your back-end systems the cookie middleware has no knowledge of this and a user will continue to stay logged in as long as their cookie is valid.
-
-The cookie authentication middleware provides a series of Events in its option class. The `ValidateAsync()` event can be used to intercept and override validation of the cookie identity.
-
-Consider a back-end user database that may have a LastChanged column. In order to invalidate a cookie when the database changes you should first, when [creating the cookie](xref:security/authentication/cookie#security-authentication-cookie-middleware-creating-a-cookie), add a LastChanged claim containing the current value. Then, when the database changes the LastChanged value should also be updated.
-
-To implement an override for the `ValidateAsync()` event you must write a method with the following signature;
+The default <xref:Microsoft.AspNetCore.Builder.CookiePolicyOptions.MinimumSameSitePolicy> value is `SameSiteMode.Lax` to permit OAuth2 authentication. To strictly enforce a same-site policy of `SameSiteMode.Strict`, set the `MinimumSameSitePolicy`. Although this setting breaks OAuth2 and other cross-origin authentication schemes, it elevates the level of cookie security for other types of apps that don't rely on cross-origin request processing.
 
 ```csharp
-Task ValidateAsync(CookieValidatePrincipalContext context);
-   ```
+var cookiePolicyOptions = new CookiePolicyOptions
+{
+    MinimumSameSitePolicy = SameSiteMode.Strict,
+};
+```
 
-ASP.NET Core Identity implements this check as part of its `SecurityStampValidator`. A simple example would look something like as follows;
+The Cookie Policy Middleware setting for `MinimumSameSitePolicy` can affect the setting of `Cookie.SameSite` in `CookieAuthenticationOptions` settings according to the matrix below.
 
-```csharp
-public static class LastChangedValidator
-   {
-       public static async Task ValidateAsync(CookieValidatePrincipalContext context)
-       {
-           // Pull database from registered DI services.
-           var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
-           var userPrincipal = context.Principal;
+| MinimumSameSitePolicy | Cookie.SameSite | Resultant Cookie.SameSite setting |
+| --------------------- | --------------- | --------------------------------- |
+| SameSiteMode.None     | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict |
+| SameSiteMode.Lax      | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.Lax<br>SameSiteMode.Lax<br>SameSiteMode.Strict |
+| SameSiteMode.Strict   | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.Strict<br>SameSiteMode.Strict<br>SameSiteMode.Strict |
 
-           // Look for the last changed claim.
-           string lastChanged;
-           lastChanged = (from c in userPrincipal.Claims
-                          where c.Type == "LastUpdated"
-                          select c.Value).FirstOrDefault();
+## Create an authentication cookie
 
-           if (string.IsNullOrEmpty(lastChanged) ||
-               !userRepository.ValidateLastChanged(userPrincipal, lastChanged))
-           {
-               context.RejectPrincipal();
-               await context.HttpContext.Authentication.SignOutAsync("MyCookieMiddlewareInstance");
-           }
-       }
-   }
-   ```
+To create a cookie holding user information, construct a <xref:System.Security.Claims.ClaimsPrincipal>. The user information is serialized and stored in the cookie. 
 
-This would then be wired up during cookie middleware configuration
+Create a <xref:System.Security.Claims.ClaimsIdentity> with any required <xref:System.Security.Claims.Claim>s and call <xref:Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync*> to sign in the user. `Login.cshtml.cs` in the sample app contains the following code:
 
-```csharp
-app.UseCookieAuthentication(options =>
-   {
-       options.Events = new CookieAuthenticationEvents
-       {
-           // Set other options
-           OnValidatePrincipal = LastChangedValidator.ValidateAsync
-       };
-   });
-   ```
+[!code-csharp[](cookie/samples/6.x/CookieSample/Pages/Account/Login.cshtml.cs?name=snippet1&highlight=22-59)]
 
-If you want to non-destructively update the user principal, for example, their name might have been updated, a decision which doesn't affect security in any way you can call `context.ReplacePrincipal()` and set the `context.ShouldRenew` flag to `true`.
+[!INCLUDE[request localized comments](~/includes/code-comments-loc.md)]
 
-<a name=security-authentication-cookie-options></a>
+`SignInAsync` creates an encrypted cookie and adds it to the current response. If `AuthenticationScheme` isn't specified, the default scheme is used.
 
-## Controlling cookie options
+<xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.RedirectUri> is only used on a few specific paths by default, for example, the login path and logout paths. For more information see the [CookieAuthenticationHandler source](https://github.com/dotnet/aspnetcore/blob/f2e6e6ff334176540ef0b3291122e359c2106d1a/src/Security/Authentication/Cookies/src/CookieAuthenticationHandler.cs#L334).
 
-The `CookieAuthenticationOptions` class comes with various configuration options to enable you to fine tune the cookies created.
+ASP.NET Core's [Data Protection](xref:security/data-protection/using-data-protection) system is used for encryption. For an app hosted on multiple machines, load balancing across apps, or using a web farm, [configure data protection](xref:security/data-protection/configuration/overview) to use the same key ring and app identifier.
 
-* **ClaimsIssuer** - the issuer to be used for the [Issuer](https://msdn.microsoft.com/en-us/library/microsoft.identitymodel.claims.claim.issuer.aspx) property on any claims created by the middleware.
+## Sign out
 
-* **CookieDomain** - the domain name the cookie will be served to. By default this is the host name the request was sent to. The browser will only serve the cookie to a matching host name. You may wish to adjust this to have cookies available to any host in your domain. For example setting the cookie domain to `.contoso.com` will make it available to `contoso.com`, `www.contoso.com`, `staging.www.contoso.com` etc.
+To sign out the current user and delete their cookie, call <xref:Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync*>:
 
-* **CookieHttpOnly** - a flag indicating if the cookie should only be accessible to servers. This defaults to `true`. Changing this value may open your application to cookie theft should your application have a Cross Site Scripting bug.
+[!code-csharp[](cookie/samples/6.x/CookieSample/Pages/Account/Login.cshtml.cs?name=snippet2)]
 
-* **CookiePath** - this can be used to isolate applications running on the same host name. If you have an app running in `/app1` and want to limit the cookies issued to just be sent to that application then you should set the `CookiePath` property to `/app1`. The cookie will now only be available to requests to `/app1` or anything underneath it.
+If `CookieAuthenticationDefaults.AuthenticationScheme` or ["Cookies"](https://github.com/dotnet/aspnetcore/blob/v6.0.1/src/Security/Authentication/Cookies/src/CookieAuthenticationDefaults.cs#L16) isn't used as the scheme, supply the scheme used when configuring the authentication provider. Otherwise, the default scheme is used. For example, if "ContosoCookie" is used as the scheme, supply the scheme used when configuring the authentication provider.
 
-* **CookieSecure** - a flag indicating if the cookie created should be limited to HTTPS, HTTP or HTTPS, or the same protocol as the request. This defaults to `SameAsRequest`.
+When the browser closes it automatically deletes session based cookies (non-persistent cookies), but no cookies are cleared when an individual tab is closed. The server is not notified of tab or browser close events.
 
-* **ExpireTimeSpan** - the `TimeSpan` after which the cookie will expire. This is added to the current date and time to create the expiry date for the cookie.
+## React to back-end changes
 
-* **SlidingExpiration** - a flag indicating if the cookie expiration date will be reset when the more than half of the `ExpireTimeSpan` interval has passed. The new expiry date will be moved forward to be the current date plus the `ExpireTimespan`. An [absolute expiry time](xref:security/authentication/cookie#security-authentication-absolute-expiry) can be set by using the `AuthenticationProperties` class when calling `SignInAsync`. An absolute expiry can improve the security of your application by limiting the amount of time for which the authentication cookie is valid.
+Once a cookie is created, the cookie is the single source of identity. If a user account is disabled in back-end systems:
 
-## Persistent cookies and absolute expiry times
+* The app's cookie authentication system continues to process requests based on the authentication cookie.
+* The user remains signed into the app as long as the authentication cookie is valid.
 
-You may want to make the cookie expire be remembered over browser sessions. You may also want an absolute expiry to the identity and the cookie transporting it. You can do these things by using the `AuthenticationProperties` parameter on the `HttpContext.Authentication.SignInAsync` method called when [signing in an identity and creating the cookie](xref:security/authentication/cookie#security-authentication-cookie-middleware-creating-a-cookie). The `AuthenticationProperties` class is in the `Microsoft.AspNetCore.Http.Authentication` namespace.
+The <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationEvents.ValidatePrincipal*> event can be used to intercept and override validation of the cookie identity. Validating the cookie on every request mitigates the risk of revoked users accessing the app.
 
-For example;
+One approach to cookie validation is based on keeping track of when the user database changes. If the database hasn't been changed since the user's cookie was issued, there's no need to re-authenticate the user if their cookie is still valid. In the sample app, the database is implemented in `IUserRepository` and stores a `LastChanged` value. When a user is updated in the database, the `LastChanged` value is set to the current time.
+
+In order to invalidate a cookie when the database changes based on the `LastChanged` value, create the cookie with a `LastChanged` claim containing the current `LastChanged` value from the database:
 
 ```csharp
-await HttpContext.Authentication.SignInAsync(
-       "MyCookieMiddlewareInstance",
-       principal,
-       new AuthenticationProperties
-       {
-           IsPersistent = true
-       });
-   ```
+var claims = new List<Claim>
+{
+    new Claim(ClaimTypes.Name, user.Email),
+    new Claim("LastChanged", {Database Value})
+};
 
-This code snippet will create an identity and corresponding cookie which will be survive through browser closures.Any sliding expiration settings previously configured via [cookie options](xref:security/authentication/cookie#security-authentication-cookie-options) will still be honored, if the cookie expires whilst the browser is closed the browser will clear it once it is restarted.
+var claimsIdentity = new ClaimsIdentity(
+    claims,
+    CookieAuthenticationDefaults.AuthenticationScheme);
 
-<a name=security-authentication-absolute-expiry></a>
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme, 
+    new ClaimsPrincipal(claimsIdentity));
+```
 
-<!-- literal_block {"ids": ["security-authentication-absolute-expiry"], "linenos": false, "names": ["security-authentication-absolute-expiry"], "xml:space": "preserve", "language": "csharp"} -->
+To implement an override for the `ValidatePrincipal` event, write a method with the following signature in a class that derives from <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationEvents>:
 
 ```csharp
-await HttpContext.Authentication.SignInAsync(
-       "MyCookieMiddlewareInstance",
-       principal,
-       new AuthenticationProperties
-       {
-           ExpiresUtc = DateTime.UtcNow.AddMinutes(20)
-       });
-   ```
+ValidatePrincipal(CookieValidatePrincipalContext)
+```
 
-This code snippet will create an identity and corresponding cookie which will be last for 20 minutes. This ignores any sliding expiration settings previously configured via [cookie options](xref:security/authentication/cookie#security-authentication-cookie-options).
+The following is an example implementation of `CookieAuthenticationEvents`:
 
-The ExpiresUtc and IsPersistent properties are mutually exclusive.
+[!code-csharp[](cookie/samples/6.x/CookieSample/CookieAuthenticationEvents.cs?name=snippet)]
+
+Register the events instance during cookie service registration. Provide a [scoped service registration](xref:fundamentals/dependency-injection#service-lifetimes) for your `CustomCookieAuthenticationEvents` class:
+
+[!code-csharp[](cookie/samples/6.x/CookieSample/Program.cs?name=snippet_cc&highlight=8-14)]
+
+Consider a situation in which the user's name is updated&mdash;a decision that doesn't affect security in any way. If you want to non-destructively update the user principal, call `context.ReplacePrincipal` and set the `context.ShouldRenew` property to `true`.
+
+> [!WARNING]
+> The approach described here is triggered on every request. Validating authentication cookies for all users on every request can result in a large performance penalty for the app.
+
+## Persistent cookies
+
+You may want the cookie to persist across browser sessions. This persistence should only be enabled with explicit user consent with a "Remember Me" checkbox on sign in or a similar mechanism. 
+
+The following code snippet creates an identity and corresponding cookie that survives through browser closures. Any sliding expiration settings previously configured are honored. If the cookie expires while the browser is closed, the browser clears the cookie once it's restarted.
+
+Set <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.IsPersistent> to `true` in <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties>:
+
+```csharp
+// using Microsoft.AspNetCore.Authentication;
+
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme,
+    new ClaimsPrincipal(claimsIdentity),
+    new AuthenticationProperties
+    {
+        IsPersistent = true
+    });
+```
+
+## Absolute cookie expiration
+
+An absolute expiration time can be set with <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.ExpiresUtc>. To create a persistent cookie, `IsPersistent` must also be set. Otherwise, the cookie is created with a session-based lifetime and could expire either before or after the authentication ticket that it holds. When `ExpiresUtc` is set, it overrides the value of the <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions.ExpireTimeSpan> option of <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>, if set.
+
+The following code snippet creates an identity and corresponding cookie that lasts for 20 minutes. This ignores any sliding expiration settings previously configured.
+
+```csharp
+// using Microsoft.AspNetCore.Authentication;
+
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme,
+    new ClaimsPrincipal(claimsIdentity),
+    new AuthenticationProperties
+    {
+        IsPersistent = true,
+        ExpiresUtc = DateTime.UtcNow.AddMinutes(20)
+    });
+```
+
+:::moniker-end
+:::moniker range="< aspnetcore-6.0"
+
+[ASP.NET Core Identity](xref:security/authentication/identity) is a complete, full-featured authentication provider for creating and maintaining logins. However, a cookie-based authentication provider without ASP.NET Core Identity can be used. For more information, see <xref:security/authentication/identity>.
+
+[View or download sample code](https://github.com/dotnet/AspNetCore.Docs/tree/main/aspnetcore/security/authentication/cookie/samples) ([how to download](xref:index#how-to-download-a-sample))
+
+For demonstration purposes in the sample app, the user account for the hypothetical user, Maria Rodriguez, is hardcoded into the app. Use the **Email** address `maria.rodriguez@contoso.com` and any password to sign in the user. The user is authenticated in the `AuthenticateUser` method in the `Pages/Account/Login.cshtml.cs` file. In a real-world example, the user would be authenticated against a database.
+
+## Configuration
+
+In the `Startup.ConfigureServices` method, create the Authentication Middleware services with the <xref:Microsoft.Extensions.DependencyInjection.AuthenticationServiceCollectionExtensions.AddAuthentication%2A> and <xref:Microsoft.Extensions.DependencyInjection.CookieExtensions.AddCookie%2A> methods:
+
+[!code-csharp[](cookie/samples/3.x/CookieSample/Startup.cs?name=snippet1)]
+
+<xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme> passed to `AddAuthentication` sets the default authentication scheme for the app. `AuthenticationScheme` is useful when there are multiple instances of cookie authentication and you want to [authorize with a specific scheme](xref:security/authorization/limitingidentitybyscheme). Setting the `AuthenticationScheme` to [CookieAuthenticationDefaults.AuthenticationScheme](xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme) provides a value of "Cookies" for the scheme. You can supply any string value that distinguishes the scheme.
+
+The app's authentication scheme is different from the app's cookie authentication scheme. When a cookie authentication scheme isn't provided to <xref:Microsoft.Extensions.DependencyInjection.CookieExtensions.AddCookie*>, it uses `CookieAuthenticationDefaults.AuthenticationScheme` ("Cookies").
+
+The authentication cookie's <xref:Microsoft.AspNetCore.Http.CookieBuilder.IsEssential> property is set to `true` by default. Authentication cookies are allowed when a site visitor hasn't consented to data collection. For more information, see <xref:security/gdpr#essential-cookies>.
+
+In `Startup.Configure`, call `UseAuthentication` and `UseAuthorization` to set the `HttpContext.User` property and run Authorization Middleware for requests. Call the `UseAuthentication` and `UseAuthorization` methods before calling `UseEndpoints`:
+
+[!code-csharp[](cookie/samples/3.x/CookieSample/Startup.cs?name=snippet2)]
+
+The <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> class is used to configure the authentication provider options.
+
+Set `CookieAuthenticationOptions` in the service configuration for authentication in the `Startup.ConfigureServices` method:
+
+```csharp
+services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        ...
+    });
+```
+
+## Cookie Policy Middleware
+
+[Cookie Policy Middleware](xref:Microsoft.AspNetCore.CookiePolicy.CookiePolicyMiddleware) enables cookie policy capabilities. Adding the middleware to the app processing pipeline is order sensitive&mdash;it only affects downstream components registered in the pipeline.
+
+```csharp
+app.UseCookiePolicy(cookiePolicyOptions);
+```
+
+Use <xref:Microsoft.AspNetCore.Builder.CookiePolicyOptions> provided to the Cookie Policy Middleware to control global characteristics of cookie processing and hook into cookie processing handlers when cookies are appended or deleted.
+
+The default <xref:Microsoft.AspNetCore.Builder.CookiePolicyOptions.MinimumSameSitePolicy> value is `SameSiteMode.Lax` to permit OAuth2 authentication. To strictly enforce a same-site policy of `SameSiteMode.Strict`, set the `MinimumSameSitePolicy`. Although this setting breaks OAuth2 and other cross-origin authentication schemes, it elevates the level of cookie security for other types of apps that don't rely on cross-origin request processing.
+
+```csharp
+var cookiePolicyOptions = new CookiePolicyOptions
+{
+    MinimumSameSitePolicy = SameSiteMode.Strict,
+};
+```
+
+The Cookie Policy Middleware setting for `MinimumSameSitePolicy` can affect the setting of `Cookie.SameSite` in `CookieAuthenticationOptions` settings according to the matrix below.
+
+| MinimumSameSitePolicy | Cookie.SameSite | Resultant Cookie.SameSite setting |
+| --------------------- | --------------- | --------------------------------- |
+| SameSiteMode.None     | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict |
+| SameSiteMode.Lax      | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.Lax<br>SameSiteMode.Lax<br>SameSiteMode.Strict |
+| SameSiteMode.Strict   | SameSiteMode.None<br>SameSiteMode.Lax<br>SameSiteMode.Strict | SameSiteMode.Strict<br>SameSiteMode.Strict<br>SameSiteMode.Strict |
+
+## Create an authentication cookie
+
+To create a cookie holding user information, construct a <xref:System.Security.Claims.ClaimsPrincipal>. The user information is serialized and stored in the cookie. 
+
+Create a <xref:System.Security.Claims.ClaimsIdentity> with any required <xref:System.Security.Claims.Claim>s and call <xref:Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync*> to sign in the user:
+
+[!code-csharp[](cookie/samples/3.x/CookieSample/Pages/Account/Login.cshtml.cs?name=snippet1)]
+
+[!INCLUDE[request localized comments](~/includes/code-comments-loc.md)]
+
+`SignInAsync` creates an encrypted cookie and adds it to the current response. If `AuthenticationScheme` isn't specified, the default scheme is used.
+
+<xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.RedirectUri> is only used on a few specific paths by default, for example, the login path and logout paths. For more information see the [CookieAuthenticationHandler source](https://github.com/dotnet/aspnetcore/blob/f2e6e6ff334176540ef0b3291122e359c2106d1a/src/Security/Authentication/Cookies/src/CookieAuthenticationHandler.cs#L334).
+
+ASP.NET Core's [Data Protection](xref:security/data-protection/using-data-protection) system is used for encryption. For an app hosted on multiple machines, load balancing across apps, or using a web farm, [configure data protection](xref:security/data-protection/configuration/overview) to use the same key ring and app identifier.
+
+## Sign out
+
+To sign out the current user and delete their cookie, call <xref:Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync*>:
+
+[!code-csharp[](cookie/samples/3.x/CookieSample/Pages/Account/Login.cshtml.cs?name=snippet2)]
+
+If `CookieAuthenticationDefaults.AuthenticationScheme` (or "Cookies") isn't used as the scheme (for example, "ContosoCookie"), supply the scheme used when configuring the authentication provider. Otherwise, the default scheme is used.
+
+When the browser closes it automatically deletes session based cookies (non-persistent cookies), but no cookies are cleared when an individual tab is closed. The server is not notified of tab or browser close events.
+
+## React to back-end changes
+
+Once a cookie is created, the cookie is the single source of identity. If a user account is disabled in back-end systems:
+
+* The app's cookie authentication system continues to process requests based on the authentication cookie.
+* The user remains signed into the app as long as the authentication cookie is valid.
+
+The <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationEvents.ValidatePrincipal*> event can be used to intercept and override validation of the cookie identity. Validating the cookie on every request mitigates the risk of revoked users accessing the app.
+
+One approach to cookie validation is based on keeping track of when the user database changes. If the database hasn't been changed since the user's cookie was issued, there's no need to re-authenticate the user if their cookie is still valid. In the sample app, the database is implemented in `IUserRepository` and stores a `LastChanged` value. When a user is updated in the database, the `LastChanged` value is set to the current time.
+
+In order to invalidate a cookie when the database changes based on the `LastChanged` value, create the cookie with a `LastChanged` claim containing the current `LastChanged` value from the database:
+
+```csharp
+var claims = new List<Claim>
+{
+    new Claim(ClaimTypes.Name, user.Email),
+    new Claim("LastChanged", {Database Value})
+};
+
+var claimsIdentity = new ClaimsIdentity(
+    claims, 
+    CookieAuthenticationDefaults.AuthenticationScheme);
+
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme, 
+    new ClaimsPrincipal(claimsIdentity));
+```
+
+To implement an override for the `ValidatePrincipal` event, write a method with the following signature in a class that derives from <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationEvents>:
+
+```csharp
+ValidatePrincipal(CookieValidatePrincipalContext)
+```
+
+The following is an example implementation of `CookieAuthenticationEvents`:
+
+```csharp
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+
+public class CustomCookieAuthenticationEvents : CookieAuthenticationEvents
+{
+    private readonly IUserRepository _userRepository;
+
+    public CustomCookieAuthenticationEvents(IUserRepository userRepository)
+    {
+        // Get the database from registered DI services.
+        _userRepository = userRepository;
+    }
+
+    public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
+    {
+        var userPrincipal = context.Principal;
+
+        // Look for the LastChanged claim.
+        var lastChanged = (from c in userPrincipal.Claims
+                           where c.Type == "LastChanged"
+                           select c.Value).FirstOrDefault();
+
+        if (string.IsNullOrEmpty(lastChanged) ||
+            !_userRepository.ValidateLastChanged(lastChanged))
+        {
+            context.RejectPrincipal();
+
+            await context.HttpContext.SignOutAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+    }
+}
+```
+
+Register the events instance during cookie service registration in the `Startup.ConfigureServices` method. Provide a [scoped service registration](xref:fundamentals/dependency-injection#service-lifetimes) for your `CustomCookieAuthenticationEvents` class:
+
+```csharp
+services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.EventsType = typeof(CustomCookieAuthenticationEvents);
+    });
+
+services.AddScoped<CustomCookieAuthenticationEvents>();
+```
+
+Consider a situation in which the user's name is updated&mdash;a decision that doesn't affect security in any way. If you want to non-destructively update the user principal, call `context.ReplacePrincipal` and set the `context.ShouldRenew` property to `true`.
+
+> [!WARNING]
+> The approach described here is triggered on every request. Validating authentication cookies for all users on every request can result in a large performance penalty for the app.
+
+## Persistent cookies
+
+You may want the cookie to persist across browser sessions. This persistence should only be enabled with explicit user consent with a "Remember Me" checkbox on sign in or a similar mechanism. 
+
+The following code snippet creates an identity and corresponding cookie that survives through browser closures. Any sliding expiration settings previously configured are honored. If the cookie expires while the browser is closed, the browser clears the cookie once it's restarted.
+
+Set <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.IsPersistent> to `true` in <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties>:
+
+```csharp
+// using Microsoft.AspNetCore.Authentication;
+
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme,
+    new ClaimsPrincipal(claimsIdentity),
+    new AuthenticationProperties
+    {
+        IsPersistent = true
+    });
+```
+
+## Absolute cookie expiration
+
+An absolute expiration time can be set with <xref:Microsoft.AspNetCore.Authentication.AuthenticationProperties.ExpiresUtc>. To create a persistent cookie, `IsPersistent` must also be set. Otherwise, the cookie is created with a session-based lifetime and could expire either before or after the authentication ticket that it holds. When `ExpiresUtc` is set, it overrides the value of the <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions.ExpireTimeSpan> option of <xref:Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>, if set.
+
+The following code snippet creates an identity and corresponding cookie that lasts for 20 minutes. This ignores any sliding expiration settings previously configured.
+
+```csharp
+// using Microsoft.AspNetCore.Authentication;
+
+await HttpContext.SignInAsync(
+    CookieAuthenticationDefaults.AuthenticationScheme,
+    new ClaimsPrincipal(claimsIdentity),
+    new AuthenticationProperties
+    {
+        IsPersistent = true,
+        ExpiresUtc = DateTime.UtcNow.AddMinutes(20)
+    });
+```
+
+:::moniker-end
