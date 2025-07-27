@@ -1,122 +1,126 @@
 ---
-title: Enabling authentication using Facebook, Google and other external  | Microsoft Docs
+title: Using external login providers with Identity in ASP.NET Core
 author: rick-anderson
-description: 
-keywords: ASP.NET Core, authentication, social, authentication providers, google, facebook, twitter, microsoft account
+description: Create an ASP.NET Core app using Identity with external authentication providers such as Facebook, Twitter, Google, and Microsoft.
 ms.author: riande
-manager: wpickett
-ms.date: 11/1/2016
-ms.topic: article
-ms.assetid: eda7ee17-f38c-462e-8d1d-63f459901cf3
-ms.technology: aspnet
-ms.prod: aspnet-core
+ms.custom: mvc
+ms.date: 07/09/2025
 uid: security/authentication/social/index
 ---
+# External provider authentication in ASP.NET Core Identity
 
-# Enabling authentication using Facebook, Google and other external providers
+By [Valeriy Novytskyy](https://github.com/01binary) and [Rick Anderson](https://twitter.com/RickAndMSFT)
 
-<a name=security-authentication-social-logins></a>
+This article explains how to build an ASP.NET Core app that enables users to sign in using OAuth 2.0 with credentials from external authentication providers.
 
-By [Rick Anderson](https://twitter.com/RickAndMSFT), [Pranav Rastogi](https://github.com/rustd), and [Valeriy Novytskyy](https://github.com/01binary)
+[Facebook](xref:security/authentication/facebook-logins), [Twitter](xref:security/authentication/twitter-logins), [Google](xref:security/authentication/google-logins), and [Microsoft](xref:security/authentication/microsoft-logins) providers are covered in the following sections and use the starter project created in this article. Other providers are available in third-party packages such as [OpenIddict](https://documentation.openiddict.com/integrations/web-providers), [AspNet.Security.OAuth.Providers](https://github.com/aspnet-contrib/AspNet.Security.OAuth.Providers) and [AspNet.Security.OpenId.Providers](https://github.com/aspnet-contrib/AspNet.Security.OpenId.Providers).
 
-This tutorial demonstrates how to build an ASP.NET Core app that enables users to log in using OAuth 2.0/1.0a with credentials from external authentication providers.
-
-[Facebook](facebook-logins.md), [Twitter](twitter-logins.md), [Google](google-logins.md), and [Microsoft](microsoft-logins.md) providers are covered in the following sections. Many third-party packages facilitate the use of other providers not covered here.
-
-![image](index/_static/social.png)
-
-Enabling users to sign in with their existing credentials is convenient for the users and shifts many of the complexities of managing the sign-in process onto a third party. For examples of how social logins can drive traffic and customer conversions, see case studies by [Facebook](https://developers.facebook.com/case-studies) and [Twitter](https://dev.twitter.com/resources/case-studies).
-
-> [!NOTE]
-> Packages presented here abstract a great deal of complexity of the OAuth authentication flow, but understanding the details may become necessary when troubleshooting. Many resources are available; for example, see [Introduction to OAuth 2](https://www.digitalocean.com/community/tutorials/an-introduction-to-oauth-2) or [Understanding OAuth 2](http://www.bubblecode.net/en/2016/01/22/understanding-oauth2/). Some issues can be resolved by looking at the [ASP.NET Core source code for the provider packages](https://github.com/aspnet/Security/tree/dev/src).
+Enabling users to sign in with their existing credentials is convenient for the users and shifts many of the complexities of managing the sign-in process onto a third party.
 
 ## Create a New ASP.NET Core Project
 
-> [!NOTE]
-> This tutorial requires the latest update (**Update 3**) for Visual Studio 2015 and ASP.NET Core.
+# [Visual Studio](#tab/visual-studio)
 
-* In Visual Studio, create a new project (from the Start Page, or via **File > New > Project**):
+* Select the **ASP.NET Core Web App** template. Select **OK**.
+* In the **Authentication type** input,  select  **Individual Accounts**.
 
-![image](index/_static/new-project.png)
+# [Visual Studio Code / .NET CLI](#tab/visual-studio-code+net-cli)
 
-* Tap **Web Application** and verify **Authentication** is set to **Individual User Accounts**:
+* Open a command shell. For Visual Studio Code, you can use the [integrated terminal](https://code.visualstudio.com/docs/editor/integrated-terminal).
 
-![image](index/_static/select-project.png)
+* Change directories (`cd`) to a folder for the sample app.
 
-## Enable SSL
+* For Windows, run the following command:
 
-Some external authentication providers reject requests coming from origins that don't use the **https** protocol. This reflects the trend of major providers like [Google](https://security.googleblog.com/2014/08/https-as-ranking-signal_6.html) moving their public API services to https and discontinuing the use of unencrypted endpoints. We encourage you to follow this trend and enable SSL for your entire site.
+  ```dotnetcli
+  dotnet new webapp -o WebApp1 -au Individual -uld
+  ```
 
-* In **Solution Explorer**, right-click the project and select **Properties**.
+  For macOS and Linux, run the following command:
 
-* On the left pane, tap **Debug**.
+  ```dotnetcli
+  dotnet new webapp -o WebApp1 -au Individual
+  ```
 
-* Check **Enable SSL**.
+  * The `dotnet new` command uses the `-o|--output` option to create a new Razor Pages project in the `WebApp1` folder.
+  * `-au Individual` creates the code for Individual authentication.
+  * `-uld` uses LocalDB, a lightweight version of SQL Server Express for Windows. Omit `-uld` to use SQLite.
 
-* Copy the SSL URL and paste it into the **App URL**:
+  For more information, see [`dotnet new <TEMPLATE>`](/dotnet/core/tools/dotnet-new).
 
-![image](index/_static/ssl.png)
+---
 
-* Modify the `services.AddMvc();` code in `Startup.cs` under `ConfigureServices` to reject all requests that are not coming over *https*:
+## Apply migrations
+
+* Run the app and select the **Register** link.
+* Enter the email and password for the new account, and then select **Register**.
+* Follow the instructions to apply migrations.
+
+[!INCLUDE[Forward request information when behind a proxy or load balancer section](includes/forwarded-headers-middleware.md)]
+
+## Use Secret Manager to store tokens assigned by login providers
+
+Social login providers assign **Application Id** and **Application Secret** tokens during the registration process. The exact token names vary by provider. These tokens represent the credentials that the app uses to access the provider's API. The tokens constitute *user secrets* that can be linked to your app configuration with the help of [Secret Manager](xref:security/app-secrets#secret-manager). User secrets are a more secure alternative to storing the tokens in a configuration file, such as `appsettings.json`.
+
+> [!IMPORTANT]
+> Secret Manager is only for local development and testing. Protect staging and production secrets with the [Azure Key Vault configuration provider](xref:security/key-vault-configuration), which can also be used for local development and testing if you prefer not to use the Secret Manager locally.
+
+For guidance on storing the tokens assigned by each login provider, see <xref:security/app-secrets>.
+
+## Configure login providers
+
+Use the following articles to configure login providers and the app:
+
+* [Facebook](xref:security/authentication/facebook-logins) instructions
+* [Twitter](xref:security/authentication/twitter-logins) instructions
+* [Google](xref:security/authentication/google-logins) instructions
+* [Microsoft](xref:security/authentication/microsoft-logins) instructions
+* [Other provider](xref:security/authentication/otherlogins) instructions
+
+## Multiple authentication providers
+
+When the app requires multiple providers, chain the provider extension methods on <xref:Microsoft.Extensions.DependencyInjection.AuthenticationServiceCollectionExtensions.AddAuthentication%2A>:
 
 ```csharp
-services.AddMvc(options =>
-{
-    options.SslPort = 44321;
-    options.Filters.Add(new RequireHttpsAttribute ());
-});
+builder.Services.AddAuthentication()
+    .AddGoogle(options =>
+    {
+        // Google configuration options
+    })
+    .AddFacebook(options =>
+    {
+        // Facebook configuration options
+    })
+    .AddMicrosoftAccount(options =>
+    {
+        // Microsoft Account configuration options
+    })
+    .AddTwitter(options =>
+    {
+        // Twitter configuration options
+    });
 ```
 
-* Test the app to ensure that static files are still being served and publicly exposed routes are accessible.
-   * There shouldn't be any warnings logged to the browser console in Developer Tools.
-   * Attempting to navigate to the previous URL that used the *http* protocol should now result in **connection rejected** errors from the browser or a blank page.
+For detailed configuration guidance on each provider, see their respective articles.
 
-## Use SecretManager to store tokens assigned by login providers
+## Optionally set a password
 
-The template used to create the sample project in this tutorial has code in `Startup.cs` which reads the configuration values from a secret store:
+When you register with an external login provider, you don't have a password registered with the app. This alleviates you from creating and remembering a password for the site, but it also makes you completely dependent on the external login provider for site access. If the external login provider is unavailable, you won't be able to sign in to the app.
 
-[!code-csharp[Main](../../../common/samples/WebApplication1/Startup.cs?highlight=11&range=20-36)]
+To create a password and sign in using your email that you set during the sign-in process with external providers:
 
-As a best practice, it is not recommended to store the secrets in a configuration file in the application since they can be checked into source control which may be publicly accessible.
+* Select the **Hello &lt;email alias&gt;** link at the top-right corner to navigate to the **Manage** view:
 
-The **SecretManager** tool stores sensitive application settings in the user profile folder on the local machine. These settings are then seamlessly merged with settings from all other sources during application startup.
+![Web application Manage view](index/_static/pass1a.png)
 
-> [!NOTE]
-> Most login providers assign **Application Id** and **Application Secret** during the registration process. These values are effectively the *user name* and *password* your application uses to access their API, and constitute the "secrets" linked to your application configuration with the help of **Secret Manager** instead of storing them in configuration files directly.
+* Select **Create**:
 
-Install the [Secret Manager tool](../../app-secrets.md) so that you can use it to store tokens assigned by each login provider below.
+![Set your password page](index/_static/pass2a.png)
 
-## Setup login providers required by your application
+* Set a valid password, and you can use this credential to sign in with your email address.
 
-Use the following pages to configure your application to use the respective providers:
+## Additional information
 
-* [Facebook](facebook-logins.md) instructions
-* [Twitter](twitter-logins.md) instructions
-* [Google](google-logins.md) instructions
-* [Microsoft](microsoft-logins.md) instructions
-* [Other provider](other-logins.md) instructions
-
-> [!NOTE]
-> Call `app.UseIdentity` (in `Configure`) before any other external providers.
-
-## Optionally set password
-
-When you register with an external login provider, you do not have a password registered with the app. This alleviates you from creating and remembering a password for the site, but it also makes you dependent on the external login provider. If the external login provider is unavailable, you won't be able to log in to the web site.
-
-To create a password and sign in using your email that you set during the sign in process with external providers:
-
-* Tap the **Hello <email alias>** link at the top right corner to navigate to the **Manage** view.
-
-![image](index/_static/pass1.png)
-
-* Tap **Create**
-
-![image](index/_static/pass2.png)
-
-* Set a valid password and you can use this to sign in with your email.
-
-## Next steps
-
-* This article introduced external authentication and explained the prerequisites required to add external logins to your ASP.NET Core app.
-
-* Reference provider-specific pages to configure logins for the providers required by your app.
+* [Sign in with Apple Example Integration](https://github.com/martincostello/SignInWithAppleSample)
+* [How to customize the login buttons (`dotnet/AspNetCore.Docs` #10563)](https://github.com/dotnet/AspNetCore.Docs/issues/10563)
+* [Persist additional data about the user and their access and refresh tokens](xref:security/authentication/social/additional-claims)

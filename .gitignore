@@ -1,9 +1,17 @@
+# The 5 approved on boarding samples that need wwwroot/lib/ can add a local .gitignore that allows wwwroot/lib/.
+# with 2.1 templates and excluding .min & .map -> 27 files and < 1 KB
+# 3.0 templates should be even less
+# wwwroot/lib/
+# When wwwroot/lib/ is commented out, exclude .min and .map files
+*.min.css
+*.min.js
+*.map
+
 _build/
 _site/
 Properties/
-node_modules/
-wwwroot/
 
+# See #577
 # Use git add -f to force override .sln when required. Not needed in most cases.
 # git add -f myProj.sln
 *.sln
@@ -18,7 +26,9 @@ Project_Readme.html
 *.user
 *.userosscache
 *.sln.docstates
-*.vscode/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -174,6 +184,8 @@ ClientBin/
 *.publishsettings
 node_modules/
 bower_components/
+blazor-samples/
+AspNetCore.Docs.Samples/
 
 # RIA/Silverlight projects
 Generated_Code/
@@ -208,9 +220,10 @@ FakesAssemblies/
 *.opt
 
 project.lock.json
-**/sample/**/wwwroot/lib/
-**/samples/**/wwwroot/lib/
 __pycache__/
 
 #Mac OSX 
 .DS_Store
+
+# Windows thumbnail cache files
+Thumbs.db

@@ -1,240 +1,297 @@
 ---
-title: Custom Policy-Based Authorization | Microsoft Docs
+title: Policy-based authorization in ASP.NET Core
 author: rick-anderson
-description: 
-keywords: ASP.NET Core,
+description: Learn how to create and use authorization policy handlers for enforcing authorization requirements in an ASP.NET Core app.
+monikerRange: '>= aspnetcore-3.1'
 ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: e422a1b2-dc4a-4bcc-b8d9-7ee62009b6a3
-ms.technology: aspnet
-ms.prod: aspnet-core
+ms.custom: mvc
+ms.date: 1/5/2023
 uid: security/authorization/policies
 ---
-# Custom Policy-Based Authorization
+# Policy-based authorization in ASP.NET Core
 
-<a name=security-authorization-policies-based></a>
+:::moniker range=">= aspnetcore-6.0"
 
-Underneath the covers the [role authorization](roles.md#security-authorization-role-based) and [claims authorization](claims.md#security-authorization-claims-based) make use of a requirement, a handler for the requirement and a pre-configured policy. These building blocks allow you to express authorization evaluations in code, allowing for a richer, reusable, and easily testable authorization structure.
+Underneath the covers, [role-based authorization](xref:security/authorization/roles) and [claims-based authorization](xref:security/authorization/claims) use a requirement, a requirement handler, and a preconfigured policy. These building blocks support the expression of authorization evaluations in code. The result is a richer, reusable, testable authorization structure.
 
-An authorization policy is made up of one or more requirements and registered at application startup as part of the Authorization service configuration, in `ConfigureServices` in the *Startup.cs* file.
+An authorization policy consists of one or more requirements. Register it as part of the authorization service configuration, in the app's `Program.cs` file:
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Program.cs" range="20-23,29":::
 
-```csharp
-public void ConfigureServices(IServiceCollection services)
-{
-    services.AddMvc();
+In the preceding example, an "AtLeast21" policy is created. It has a single requirement&mdash;that of a minimum age, which is supplied as a parameter to the requirement.
 
-    services.AddAuthorization(options =>
-    {
-        options.AddPolicy("Over21",
-                          policy => policy.Requirements.Add(new MinimumAgeRequirement(21)));
-    }
-});
-```
+## IAuthorizationService
 
-Here you can see an "Over21" policy is created with a single requirement, that of a minimum age, which is passed as a parameter to the requirement.
+The primary service that determines if authorization is successful is <xref:Microsoft.AspNetCore.Authorization.IAuthorizationService>:
 
-Policies are applied using the `Authorize` attribute by specifying the policy name, for example;
+:::code language="csharp" source="~/security/authorization/policies/samples/stubs/copy_of_IAuthorizationService.cs" id="snippet" highlight="24-25,48-49":::
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+The preceding code highlights the two methods of the [IAuthorizationService](https://github.com/dotnet/AspNetCore/blob/v2.2.4/src/Security/Authorization/Core/src/IAuthorizationService.cs).
+
+<xref:Microsoft.AspNetCore.Authorization.IAuthorizationRequirement> is a marker service with no methods, and the mechanism for tracking whether authorization is successful.
+
+Each <xref:Microsoft.AspNetCore.Authorization.IAuthorizationHandler> is responsible for checking if requirements are met:
+<!--The following code is a copy/paste from 
+https://github.com/dotnet/AspNetCore/blob/v2.2.4/src/Security/Authorization/Core/src/IAuthorizationHandler.cs -->
 
 ```csharp
-[Authorize(Policy="Over21")]
-public class AlcoholPurchaseRequirementsController : Controller
+/// <summary>
+/// Classes implementing this interface are able to make a decision if authorization
+/// is allowed.
+/// </summary>
+public interface IAuthorizationHandler
 {
-    public ActionResult Login()
-    {
-    }
-
-    public ActionResult Logout()
-    {
-    }
+    /// <summary>
+    /// Makes a decision if authorization is allowed.
+    /// </summary>
+    /// <param name="context">The authorization information.</param>
+    Task HandleAsync(AuthorizationHandlerContext context);
 }
 ```
+
+The <xref:Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext> class is what the handler uses to mark whether requirements have been met:
+
+```csharp
+ context.Succeed(requirement)
+```
+
+The following code shows the simplified (and annotated with comments) default implementation of the authorization service:
+
+```csharp
+public async Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, 
+             object resource, IEnumerable<IAuthorizationRequirement> requirements)
+{
+    // Create a tracking context from the authorization inputs.
+    var authContext = _contextFactory.CreateContext(requirements, user, resource);
+
+    // By default this returns an IEnumerable<IAuthorizationHandler> from DI.
+    var handlers = await _handlers.GetHandlersAsync(authContext);
+
+    // Invoke all handlers.
+    foreach (var handler in handlers)
+    {
+        await handler.HandleAsync(authContext);
+    }
+
+    // Check the context, by default success is when all requirements have been met.
+    return _evaluator.Evaluate(authContext);
+}
+```
+
+The following code shows a typical authorization service configuration:
+
+```csharp
+// Add all of your handlers to DI.
+builder.Services.AddSingleton<IAuthorizationHandler, MyHandler1>();
+// MyHandler2, ...
+
+builder.Services.AddSingleton<IAuthorizationHandler, MyHandlerN>();
+
+// Configure your policies
+builder.Services.AddAuthorization(options =>
+      options.AddPolicy("Something",
+      policy => policy.RequireClaim("Permission", "CanViewPage", "CanViewAnything")));
+```
+
+Use <xref:Microsoft.AspNetCore.Authorization.IAuthorizationService>, `[Authorize(Policy = "Something")]`, or `RequireAuthorization("Something")` for authorization.
+
+<a name="apply-policies-to-mvc-controllers"></a>
+
+## Apply policies to MVC controllers
+
+For apps that use Razor Pages, see the [Apply policies to Razor Pages](#apply-policies-to-razor-pages) section.
+
+Apply policies to controllers by using the `[Authorize]` attribute with the policy name:
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Controllers/AtLeast21Controller.cs" id="snippet" highlight="1":::
+
+If multiple policies are applied at the controller and action levels, ***all*** policies must pass before access is granted:
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Controllers/AtLeast21Controller2.cs" id="snippet" highlight="1,4":::
+
+## Apply policies to Razor Pages
+
+Apply policies to Razor Pages by using the `[Authorize]` attribute with the policy name. For example:
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Pages/AtLeast21.cshtml.cs" highlight="6":::
+
+Policies can ***not*** be applied at the Razor Page handler level, they must be applied to the Page.
+
+Policies can also be applied to Razor Pages by using an [authorization convention](xref:security/authorization/razor-pages-authorization).
+
+## Apply policies to endpoints
+
+Apply policies to endpoints by using <xref:Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization%2A> with the policy name. For example:
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Program.cs" id="snippet_requireAuthorization":::
+
+<a name="requirements"></a>
 
 ## Requirements
 
-An authorization requirement is a collection of data parameters that a policy can use to evaluate the current user principal. In our Minimum Age policy the requirement we have a single parameter, the minimum age. A requirement must implement `IAuthorizationRequirement`. This is an empty, marker interface. A parameterized minimum age requirement might be implemented as follows;
+An authorization requirement is a collection of data parameters that a policy can use to evaluate the current user principal. In our "AtLeast21" policy, the requirement is a single parameter&mdash;the minimum age. A requirement implements <xref:Microsoft.AspNetCore.Authorization.IAuthorizationRequirement>, which is an empty marker interface. A parameterized minimum age requirement could be implemented as follows:
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Requirements/MinimumAgeRequirement.cs":::
 
-```csharp
-public class MinimumAgeRequirement : IAuthorizationRequirement
-{
-    public MinimumAgeRequirement(int age)
-    {
-        MinimumAge = age;
-    }
+If an authorization policy contains multiple authorization requirements, all requirements must pass in order for the policy evaluation to succeed. In other words, multiple authorization requirements added to a single authorization policy are treated on an **AND** basis.
 
-    protected int MinimumAge { get; set; }
-}
-```
+> [!NOTE]
+> A requirement doesn't need to have data or properties.
 
-A requirement doesn't need to have data or properties.
+<a name="security-authorization-policies-based-authorization-handler"></a>
 
-<a name=security-authorization-policies-based-authorization-handler></a>
+## Authorization handlers
 
-## Authorization Handlers
+An authorization handler is responsible for the evaluation of a requirement's properties. The authorization handler evaluates the requirements against a provided <xref:Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext> to determine if access is allowed.
 
-An authorization handler is responsible for the evaluation of any properties of a requirement. The  authorization handler must evaluate them against a provided `AuthorizationHandlerContext` to decide if authorization is allowed. A requirement can have [multiple handlers](policies.md#security-authorization-policies-based-multiple-handlers). Handlers must inherit `AuthorizationHandler<T>` where T is the requirement it handles.
+A requirement can have [multiple handlers](#security-authorization-policies-based-multiple-handlers). A handler may inherit <xref:Microsoft.AspNetCore.Authorization.AuthorizationHandler%601>, where `TRequirement` is the requirement to be handled. Alternatively, a handler may implement <xref:Microsoft.AspNetCore.Authorization.IAuthorizationHandler> directly to handle more than one type of requirement.
 
-<a name=security-authorization-handler-example></a>
+### Use a handler for one requirement
 
-The minimum age handler might look like this:
+<a name="security-authorization-handler-example"></a>
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+The following example shows a one-to-one relationship in which a minimum age handler handles a single requirement:
 
-```csharp
-public class MinimumAgeHandler : AuthorizationHandler<MinimumAgeRequirement>
-{
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, MinimumAgeRequirement requirement)
-    {
-        if (!context.User.HasClaim(c => c.Type == ClaimTypes.DateOfBirth &&
-                                   c.Issuer == "http://contoso.com"))
-        {
-            // .NET 4.x -> return Task.FromResult(0);
-            return Task.CompletedTask;
-        }
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Handlers/MinimumAgeHandler.cs":::
 
-        var dateOfBirth = Convert.ToDateTime(context.User.FindFirst(
-            c => c.Type == ClaimTypes.DateOfBirth && c.Issuer == "http://contoso.com").Value);
+The preceding code determines if the current user principal has a date of birth claim that has been issued by a known and trusted Issuer. Authorization can't occur when the claim is missing, in which case a completed task is returned. When a claim is present, the user's age is calculated. If the user meets the minimum age defined by the requirement, authorization is considered successful. When authorization is successful, `context.Succeed` is invoked with the satisfied requirement as its sole parameter.
 
-        int calculatedAge = DateTime.Today.Year - dateOfBirth.Year;
-        if (dateOfBirth > DateTime.Today.AddYears(-calculatedAge))
-        {
-            calculatedAge--;
-        }
+### Use a handler for multiple requirements
 
-        if (calculatedAge >= requirement.MinimumAge)
-        {
-            context.Succeed(requirement);
-        }
-        return Task.CompletedTask;
-    }
-}
-```
+The following example shows a one-to-many relationship in which a permission handler can handle three different types of requirements:
 
-In the code above we first look to see if the current user principal has a date of birth claim which has been issued by an Issuer we know and trust. If the claim is missing we can't authorize so we return. If we have a claim, we figure out how old the user is, and if they meet the minimum age passed in by the requirement then authorization has been successful. Once authorization is successful we call `context.Succeed()` passing in the requirement that has been successful as a parameter.
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Handlers/PermissionHandler.cs":::
 
-<a name=security-authorization-policies-based-handler-registration></a>
+The preceding code traverses <xref:Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext.PendingRequirements%2A>&mdash;a property containing requirements not marked as successful. For a `ReadPermission` requirement, the user must be either an owner or a sponsor to access the requested resource. For an `EditPermission` or `DeletePermission` requirement, they must be an owner to access the requested resource.
 
-Handlers must be registered in the services collection during configuration, for example;
+<a name="security-authorization-policies-based-handler-registration"></a>
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+### Handler registration
 
-```csharp
+Register handlers in the services collection during configuration. For example:
 
-public void ConfigureServices(IServiceCollection services)
-{
-    services.AddMvc();
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Program.cs" id="snippet_minimumAgeHandlerRegistration":::
 
-    services.AddAuthorization(options =>
-    {
-        options.AddPolicy("Over21",
-                          policy => policy.Requirements.Add(new MinimumAgeRequirement(21)));
-    });
+The preceding code registers `MinimumAgeHandler` as a singleton. Handlers can be registered using any of the built-in [service lifetimes](xref:fundamentals/dependency-injection#service-lifetimes).
 
-    services.AddSingleton<IAuthorizationHandler, MinimumAgeHandler>();
-}
-```
+It's possible to bundle both a requirement and a handler into a single class implementing both <xref:Microsoft.AspNetCore.Authorization.IAuthorizationRequirement> and <xref:Microsoft.AspNetCore.Authorization.IAuthorizationHandler>. This bundling creates a tight coupling between the handler and requirement and is only recommended for simple requirements and handlers. Creating a class that implements both interfaces removes the need to register the handler in DI because of the built-in <xref:Microsoft.AspNetCore.Authorization.Infrastructure.PassThroughAuthorizationHandler> that allows requirements to handle themselves.
 
-Each handler is added to the services collection by using `services.AddSingleton<IAuthorizationHandler, YourHandlerClass>();` passing in your handler class.
+See the implementation of the <xref:Microsoft.AspNetCore.Authorization.Infrastructure.AssertionRequirement> class for a good example where the <xref:Microsoft.AspNetCore.Authorization.Infrastructure.AssertionRequirement> is both a requirement and the handler in a fully self-contained class.
 
 ## What should a handler return?
 
-You can see in our [handler example](policies.md#security-authorization-handler-example) that the `Handle()` method has no return value, so how do we indicate success or failure?
+Note that the `Handle` method in the [handler example](#security-authorization-handler-example) returns no value. How is a status of either success or failure indicated?
 
 * A handler indicates success by calling `context.Succeed(IAuthorizationRequirement requirement)`, passing the requirement that has been successfully validated.
 
-* A handler does not need to handle failures generally, as other handlers for the same requirement may succeed.
+* A handler doesn't need to handle failures generally, as other handlers for the same requirement may succeed.
 
-* To guarantee failure even if other handlers for a requirement succeed, call `context.Fail`.
+* To guarantee failure, even if other requirement handlers succeed, call `context.Fail`.
 
-Regardless of what you call inside your handler all handlers for a requirement will be called when a policy requires the requirement. This allows requirements to have side effects, such as logging, which will always take place even if `context.Fail()` has been called in another handler.
+If a handler calls `context.Succeed` or `context.Fail`, all other handlers are still called. This allows requirements to produce side effects, such as logging, which takes place even if another handler has successfully validated or failed a requirement. When set to `false`, the <xref:Microsoft.AspNetCore.Authorization.AuthorizationOptions.InvokeHandlersAfterFailure%2A> property short-circuits the execution of handlers when `context.Fail` is called. `InvokeHandlersAfterFailure` defaults to `true`, in which case all handlers are called.
 
-<a name=security-authorization-policies-based-multiple-handlers></a>
+> [!NOTE]
+> Authorization handlers are called even if authentication fails. Also handlers can execute in any order, so do ***not*** depend on them being called in any particular order.
+
+<a name="security-authorization-policies-based-multiple-handlers"></a>
 
 ## Why would I want multiple handlers for a requirement?
 
-In cases where you want evaluation to be on an **OR** basis you implement multiple handlers for a single requirement. For example, Microsoft has doors which only open with key cards. If you leave your key card at home the receptionist prints a temporary sticker and opens the door for you. In this scenario you'd have a single requirement, *EnterBuilding*, but multiple handlers, each one examining a single requirement.
+In cases where you want evaluation to be on an **OR** basis, implement multiple handlers for a single requirement. For example, Microsoft has doors that only open with key cards. If you leave your key card at home, the receptionist prints a temporary sticker and opens the door for you. In this scenario, you'd have a single requirement, *BuildingEntry*, but multiple handlers, each one examining a single requirement.
 
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+`BuildingEntryRequirement.cs`
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Requirements/BuildingEntryRequirement.cs":::
+
+`BadgeEntryHandler.cs`
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Handlers/BadgeEntryHandler.cs":::
+
+`TemporaryStickerHandler.cs`
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Policies/Handlers/TemporaryStickerHandler.cs":::
+
+Ensure that both handlers are [registered](xref:security/authorization/policies#security-authorization-policies-based-handler-registration). If either handler succeeds when a policy evaluates the `BuildingEntryRequirement`, the policy evaluation succeeds.
+
+<a name="use-a-func-to-fulfill-a-policy"></a>
+
+## Use a func to fulfill a policy
+
+There may be situations in which fulfilling a policy is simple to express in code. It's possible to supply a `Func<AuthorizationHandlerContext, bool>` when configuring a policy with the `RequireAssertion` policy builder.
+
+For example, the previous `BadgeEntryHandler` could be rewritten as follows:
+
+:::code language="csharp" source="~/security/authorization/policies/samples/6.0/AuthorizationPoliciesSample/Program.cs" range="20-21,25-29":::
+
+<a name="access-mvc-request-context-in-handlers"></a>
+
+## Access MVC request context in handlers
+
+The `HandleRequirementAsync` method has two parameters: an `AuthorizationHandlerContext` and the `TRequirement` being handled. Frameworks such as MVC or SignalR are free to add any object to the `Resource` property on the `AuthorizationHandlerContext` to pass extra information.
+
+When using endpoint routing, authorization is typically handled by the Authorization Middleware. In this case, the `Resource` property is an instance of <xref:Microsoft.AspNetCore.Http.HttpContext>. The context can be used to access the current endpoint, which can be used to probe the underlying resource to which you're routing. For example:
 
 ```csharp
-public class EnterBuildingRequirement : IAuthorizationRequirement
+if (context.Resource is HttpContext httpContext)
 {
-}
-
-public class BadgeEntryHandler : AuthorizationHandler<EnterBuildingRequirement>
-{
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, EnterBuildingRequirement requirement)
-    {
-        if (context.User.HasClaim(c => c.Type == ClaimTypes.BadgeId &&
-                                       c.Issuer == "http://microsoftsecurity"))
-        {
-            context.Succeed(requirement);
-        }
-        return Task.CompletedTask;
-    }
-}
-
-public class HasTemporaryStickerHandler : AuthorizationHandler<EnterBuildingRequirement>
-{
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, EnterBuildingRequirement requirement)
-    {
-        if (context.User.HasClaim(c => c.Type == ClaimTypes.TemporaryBadgeId &&
-                                       c.Issuer == "https://microsoftsecurity"))
-        {
-            // We'd also check the expiration date on the sticker.
-            context.Succeed(requirement);
-        }
-        return Task.CompletedTask;
-    }
+    var endpoint = httpContext.GetEndpoint();
+    var actionDescriptor = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
+    ...
 }
 ```
 
-Now, assuming both handlers are [registered](xref:security/authorization/policies#security-authorization-policies-based-handler-registration) when a policy evaluates the `EnterBuildingRequirement` if either handler succeeds the policy evaluation will succeed.
+With traditional routing, or when authorization happens as part of MVC's authorization filter, the value of `Resource` is an <xref:Microsoft.AspNetCore.Mvc.Filters.AuthorizationFilterContext> instance. This property provides access to `HttpContext`, `RouteData`, and everything else provided by MVC and Razor Pages.
 
-## Using a func to fufill a policy
-
-There may be occasions where fufilling a policy is simple to express in code. It is possible to simply supply a `Func<AuthorizationHandlerContext, bool>` when configuring your policy with the `RequireAssertion` policy builder.
-
-For example the previous `BadgeEntryHandler` could be rewritten as follows;
-
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
+The use of the `Resource` property is framework-specific. Using information in the `Resource` property limits your authorization policies to particular frameworks. Cast the `Resource` property using the `is` keyword, and then confirm the cast has succeeded to ensure your code doesn't crash with an `InvalidCastException` when run on other frameworks:
 
 ```csharp
-services.AddAuthorization(options =>
-    {
-        options.AddPolicy("BadgeEntry",
-                          policy => policy.RequireAssertion(context =>
-                                  context.User.HasClaim(c =>
-                                     (c.Type == ClaimTypes.BadgeId ||
-                                      c.Type == ClaimTypes.TemporaryBadgeId)
-                                      && c.Issuer == "https://microsoftsecurity"));
-                          }));
-    }
- }
-```
-
-## Accessing MVC Request Context In Handlers
-
-The `Handle` method you must implement in an authorization handler has two parameters, an `AuthorizationContext` and the `Requirement` you are handling. Frameworks such as MVC or Jabbr are free to add any object to the `Resource` property on the `AuthorizationContext` to pass through extra information.
-
-For example MVC passes an instance of `Microsoft.AspNetCore.Mvc.Filters.AuthorizationFilterContext` in the resource property which is used to access HttpContext, RouteData and everything else MVC provides.
-
-The use of the `Resource` property is framework specific. Using information in the `Resource` property will limit your authorization policies to particular frameworks. You should cast the `Resource` property using the `as` keyword, and then check the cast has succeed to ensure your code doesn't crash with `InvalidCastExceptions` when run on other frameworks;
-
-<!-- literal_block {"ids": [], "names": [], "highlight_args": {}, "backrefs": [], "dupnames": [], "linenos": false, "classes": [], "xml:space": "preserve", "language": "c#"} -->
-
-```csharp
-var mvcContext = context.Resource as Microsoft.AspNetCore.Mvc.Filters.AuthorizationFilterContext;
-
-if (mvcContext != null)
+// Requires the following import:
+//     using Microsoft.AspNetCore.Mvc.Filters;
+if (context.Resource is AuthorizationFilterContext mvcContext)
 {
-    // Examine MVC specific things like routing data.
+    // Examine MVC-specific things like routing data.
 }
 ```
+
+## Globally require all users to be authenticated
+
+[!INCLUDE[](~/includes/requireAuth.md)]
+
+<a name="exs"></a>
+
+## Authorization with external service sample
+
+The sample code on [AspNetCore.Docs.Samples](https://github.com/dotnet/AspNetCore.Docs.Samples/tree/main/samples/aspnetcore-authz-with-ext-authz-service) shows how to implement additional authorization requirements with an external authorization service. The sample `Contoso.API` project is secured with [Azure AD](/azure/active-directory/fundamentals/active-directory-whatis). An additional authorization check from the `Contoso.Security.API` project returns a payload describing whether the `Contoso.API` client app can invoke the `GetWeather` API.
+
+### Configure the sample
+
+* Create an [application registration](/azure/active-directory/develop/quickstart-register-app) in your [Microsoft Entra ID tenant](/azure/active-directory/develop/quickstart-create-new-tenant):
+
+ * Assign it an AppRole.
+ * Under API permissions, add the AppRole as a permission and grant Admin consent. Note that in this setup, this app registration represents both the API and the client invoking the API. If you like, you can create two app registrations. If you are using this setup, be sure to only perform the API permissions, add AppRole as a permission step for only the client. Only the client app registration requires a client secret to be generated.
+
+* Configure the `Contoso.API` project with the following settings:
+
+:::code language="csharp" source="~/../AspNetCore.Docs.Samples/samples/aspnetcore-authz-with-ext-authz-service/Contoso.API/appsettings.json":::
+
+* Configure `Contoso.Security.API` with the following settings:
+
+:::code language="csharp" source="~/../AspNetCore.Docs.Samples/samples/aspnetcore-authz-with-ext-authz-service/Contoso.Security.API/appsettings.json":::
+
+* Open the [ContosoAPI.collection.json](https://github.com/dotnet/AspNetCore.Docs.Samples/blob/main/samples/aspnetcore-authz-with-ext-authz-service/ContosoAPI.collection.json) file and configure an environment with the following:
+
+    * `ClientId`: Client Id from app registration representing the client calling the API.
+    * `clientSecret`: Client Secret from app registration representing the client calling the API.
+    * `TenantId`: Tenant Id from AAD properties
+
+* Extract the commands from the `ContosoAPI.collection.json` file and use them to construct cURL commands to test the app.
+* Run the solution and use [cURL](https://curl.se/) to invoke the API. You can add breakpoints in the `Contoso.Security.API.SecurityPolicyController` and observe the client Id is being passed in that is used to assert whether it is allowed to Get Weather.
+
+## Additional resources
+
+* [Quickstart: Configure an application to expose a web API](/azure/active-directory/develop/quickstart-configure-app-expose-web-apis)
+* [AspNetCore.Docs.Samples code](https://github.com/dotnet/AspNetCore.Docs.Samples/tree/main/samples/aspnetcore-authz-with-ext-authz-service)
+
+:::moniker-end
+
+[!INCLUDE[](~/security/authorization/policies/includes/policies5.md)]

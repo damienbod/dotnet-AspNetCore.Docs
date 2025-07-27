@@ -1,227 +1,425 @@
 ---
-title: Account Confirmation and Password Recovery | Microsoft Docs
+title: Account confirmation and password recovery in ASP.NET Core
 author: rick-anderson
-description: 
-keywords: ASP.NET Core,
+description: Learn how to build an ASP.NET Core app with email confirmation and password reset.
 ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: d794500b-86f7-4229-a237-e0dd00e2dc08
-ms.technology: aspnet
-ms.prod: aspnet-core
+monikerRange: '>= aspnetcore-3.1'
+ms.date: 2/9/2022
 uid: security/authentication/accconfirm
 ---
-# Account Confirmation and Password Recovery
+# Account confirmation and password recovery in ASP.NET Core
 
->[!WARNING]
-> This page documents version 1.0.0-rc2 and has not yet been updated for version 1.0.0
+By [Rick Anderson](https://twitter.com/RickAndMSFT), [Ponant](https://github.com/Ponant), and [Joe Audette](https://twitter.com/joeaudette)
 
-<a name=security-authentication-account-confirmation></a>
+This tutorial shows how to build an ASP.NET Core app with email confirmation and password reset. This tutorial is **not** a beginning topic. You should be familiar with:
 
-By [Rick Anderson](https://twitter.com/RickAndMSFT)
+* [ASP.NET Core](xref:tutorials/razor-pages/razor-pages-start)
+* [Authentication](xref:security/authentication/identity)
+* [Entity Framework Core](xref:data/ef-mvc/intro)
 
-This tutorial shows you how to build an ASP.NET Core app with email confirmation and password reset support.
+:::moniker range=">= aspnetcore-8.0"
 
-## Create a New ASP.NET Core Project
+For Blazor guidance, which adds to or supersedes the guidance in this article, see the following resources:
 
-> [!NOTE]
-> The tutorial requires Visual Studio 2015 updated 2 and ASP.NET Core RC2 or higher.
+* <xref:blazor/security/account-confirmation-and-password-recovery>
+* <xref:blazor/security/webassembly/standalone-with-identity/account-confirmation-and-password-recovery>
 
-* In Visual Studio, create a New Project (from the Start Page, or via **File > New > Project**)
+:::moniker-end
 
-![image](accconfirm/_static/new-project.png)
+<!-- see Dropbox/wrk/Code/SendGridConsole/Program.cs -->
 
-* Tap **Web Application** and verify **Authentication** is set to **Individual User Accounts**
+:::moniker range=">= aspnetcore-6.0"
 
-![image](accconfirm/_static/select-project.png)
+## Prerequisites
 
-Run the app and then click on the **Register** link and register a user. At this  point, the only validation on the email is with the [[EmailAddress]](http://msdn.microsoft.com/en-us/library/system.componentmodel.dataannotations.emailaddressattribute(v=vs.110).aspx) attribute. After you submit the registration, you are logged into the app. Later in the tutorial we'll change this so new users cannot log in until their email has been validated.
+* [.NET 6 or later SDK](https://dotnet.microsoft.com/download/dotnet/6.0)
+* Successfully [send email from a C# console app](https://www.twilio.com/blog/send-emails-using-the-sendgrid-api-with-dotnetnet-6-and-csharp).
 
-In **SQL Server Object Explorer** (SSOX), navigate to **(localdb)MSSQLLocalDB(SQL Server 12)**. Right click on **dbo.AspNetUsers** > **View Data**:
+## Create and test a web app with authentication
 
-![image](accconfirm/_static/ssox.png)
+Run the following commands to create a web app with authentication.
 
-![image](accconfirm/_static/au.png)
-
-Note the `EmailConfirmed` field is `False`.
-
-Right-click on the row and from the context menu, select **Delete**. You might want to use this email again in the next step, when the app sends a confirmation email. Deleting the email alias now will make it easier in the following steps.
-
-## Require SSL
-
-In this section we'll set up our Visual Studio project to use SSL and our project to require SSL.
-
-### Enable SSL in Visual Studio
-
-   * In solution explorer, right click the project and select **Properties**
-
-   * On the left pane, tap **Debug**
-
-   * Check **Enable SSL**
-
-   * Copy the SSL URL and paste it into the **App URL**
-
-![image](accconfirm/_static/ssl.png)
-
-* Add the following code to `ConfigureServices` in `Startup`:
-
-```csharp
-services.Configure<MvcOptions>(options =>
-{
-    options.Filters.Add(new RequireHttpsAttribute ());
-});
+```dotnetcli
+dotnet new webapp -au Individual -o WebPWrecover
+cd WebPWrecover
+dotnet run
 ```
 
-Add the `[RequireHttps]` attribute to each controller. The `[RequireHttps]` attribute will redirect all HTTP GET requests to HTTPS GET and will reject all HTTP POSTs. A security best practice is to use HTTPS for all requests.
+<a name="regsim"></a>
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Controllers/HomeController.cs?range=9-10&highlight=1)]
+### Register user with simulated email confirmation
 
-## Require email confirmation
+Run the app, select the **Register** link, and register a user. Once registered, you are redirected to the to `/Identity/Account/RegisterConfirmation` page which contains a link to simulate email confirmation:
 
-It's a best practice to confirm the email of a new user registration to verify they are not impersonating someone else (that is, they haven't registered with someone else's email). Suppose you had a discussion forum, you would want to prevent "yli@example.com" from registering as "nolivetto@contoso.com." Without email confirmation, "nolivetto@contoso.com" could get unwanted email from your app. Suppose the user accidentally registered as "ylo@example.com" and hadn't noticed the misspelling of "yli," they wouldn't be able to use password recovery because the app doesn't have their correct email. Email confirmation provides only limited protection from bots and doesn't provide protection from determined spammers who have many working email aliases they can use to register.
+* Select the `Click here to confirm your account` link.
+* Select the **Login** link and sign-in with the same credentials.
+* Select the `Hello YourEmail@provider.com!` link, which redirects to the `/Identity/Account/Manage/PersonalData` page.
+* Select the **Personal data** tab on the left, and then select **Delete**.
 
-You generally want to prevent new users from posting any data to your web site before they have a confirmed email. In the sections below, we will enable email confirmation and modify the code to prevent newly registered users from logging in until their email has been confirmed.
+The `Click here to confirm your account` link is displayed because an [IEmailSender](https://github.com/dotnet/aspnetcore/blob/1dcf7acfacf0fe154adcc23270cb0da11ff44ace/src/Identity/UI/src/Areas/Identity/Services/EmailSender.cs) has not been implemented and registered with the [dependency injection container](xref:fundamentals/dependency-injection). See the [`RegisterConfirmation` source](https://github.com/dotnet/aspnetcore/blob/main/src/Identity/UI/src/Areas/Identity/Pages/V4/Account/RegisterConfirmation.cshtml.cs#L71-L74).
 
-Update `ConfigureServices` to require a confirmed email:
+[!INCLUDE[](~/includes/aspnetcore-repo-ref-source-links.md)]
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Startup.cs?highlight=11&name=snippet1)]
+### Configure an email provider
 
-### Configure email provider
+In this tutorial, [SendGrid](https://sendgrid.com) is used to send email. A SendGrid account and key is needed to send email. We recommend using SendGrid or another email service to send email rather than SMTP. SMTP is difficult to secure and set up correctly.
 
-We'll use the [Options pattern](../../fundamentals/configuration.md#options-config-objects) to access the user account and key settings. For more information, see [configuration](../../fundamentals/configuration.md#fundamentals-configuration).
+The SendGrid account may require [adding a Sender](https://sendgrid.com/docs/ui/sending-email/senders/).
 
-   * Create a class to fetch the secure email key. For this sample, the `AuthMessageSenderOptions` class is created in the *Services/AuthMessageSenderOptions.cs* file.
+Create a class to fetch the secure email key. For this sample, create `Services/AuthMessageSenderOptions.cs`:
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Services/AuthMessageSenderOptions.cs?range=8-12)]
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Services/AuthMessageSenderOptions.cs)]
 
-Set the `SendGridUser` and `SendGridKey` with the [secret-manager tool](../app-secrets.md). For example:
+#### Configure SendGrid user secrets
 
-```none
-C:\WebApplication3\src\WebApplication3>dotnet user-secrets set SendGridUser RickAndMSFT
-info: Successfully saved SendGridUser = RickAndMSFT to the secret store.
+Set the `SendGridKey` with the [secret-manager tool](xref:security/app-secrets). For example:
+
+```dotnetcli
+dotnet user-secrets set SendGridKey <key>
+
+Successfully saved SendGridKey to the secret store.
 ```
 
-On Windows, Secret Manager stores your keys/value pairs in a *secrets.json* file in the %APPDATA%/Microsoft/UserSecrets/<**userSecretsId**> directory. The **userSecretsId** directory can be found in your *project.json* file. For this example, the first few lines of the *project.json* file are shown below:
+On Windows, Secret Manager stores keys/value pairs in a `secrets.json` file in the `%APPDATA%/Microsoft/UserSecrets/<WebAppName-userSecretsId>` directory.
 
-[!code-json[Main](../../security/authentication/accconfirm/sample/WebApplication3/src/WebApplication3/project.json?highlight=3&range=1-6)]
-
-At this time, the contents of the *secrets.json* file are not encrypted. The *secrets.json* file is shown below (the sensitive keys have been removed.)
+The contents of the `secrets.json` file aren't encrypted. The following markup shows the `secrets.json` file. The `SendGridKey` value has been removed.
 
 ```json
 {
-  "SendGridUser": "RickAndMSFT",
-  "SendGridKey": "",
-  "Authentication:Facebook:AppId": "",
-  "Authentication:Facebook:AppSecret": ""
+  "SendGridKey": "<key removed>"
 }
 ```
 
-### Configure startup to use `AuthMessageSenderOptions`
+For more information, see the [Options pattern](xref:fundamentals/configuration/options) and [configuration](xref:fundamentals/configuration/index).
 
-Add the dependency `Microsoft.Extensions.Options.ConfigurationExtensions` in the project.json file.
+### Install SendGrid
 
-Add `AuthMessageSenderOptions` to the service container at the end of the `ConfigureServices` method in the *Startup.cs* file:
+This tutorial shows how to add email notifications through [SendGrid](https://sendgrid.com/), but other email providers can be used.
 
-[!code-csharp[Main](../../security/authentication/accconfirm/sample/WebApplication3/src/WebApplication3/Startup.cs?highlight=4&range=58-62)]
+Install the `SendGrid` NuGet package:
 
-### Configure the `AuthMessageSender` class
+# [Visual Studio](#tab/visual-studio)
 
-This tutorial shows how to add email notification through [SendGrid](https://sendgrid.com/), but you can send email using SMTP and other mechanisms.
+From the Package Manager Console, enter the following command:
 
-* Install the SendGrid.NetCore NuGet package. From the Package Manager Console,  enter the following the following command:
+```powershell
+Install-Package SendGrid
+```
 
-    `Install-Package SendGrid.NetCore -Pre`
+# [.NET CLI](#tab/net-cli)
 
->[!NOTE]
->SendGrid.NetCore package is a prerelease version , to install it is necessary to use -Pre option on Install-Package.
+From the console, enter the following command:
 
-* Follow the instructions [Create a SendGrid account](https://azure.microsoft.com/en-us/documentation/articles/sendgrid-dotnet-how-to-send-email/#create-a-sendgrid-account) to register for a free SendGrid account.
+```dotnetcli
+dotnet add package SendGrid
+```
 
-* Add code in *Services/MessageServices.cs* similar to the following to configure SendGrid
+---
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Services/MessageServices.cs?range=13-53)]
+See [Get Started with SendGrid for Free](https://sendgrid.com/free/) to register for a free SendGrid account.
 
-## Enable account confirmation and password recovery
+### Implement IEmailSender
 
-The template already has the code for account confirmation and password recovery. Follow these steps to enable it:
+To Implement `IEmailSender`, create `Services/EmailSender.cs` with code similar to the following:
 
-*  Find the `[HttpPost] Register` method in the  *AccountController.cs* file.
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Services/EmailSender.cs)]
 
-*  Uncomment the code to enable account confirmation.
+### Configure app to support email
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Controllers/AccountController.cs?highlight=17-21&range=113-142)]
+Add the following code to the `Program.cs` file:
 
-> [!NOTE]
-> We're also preventing a newly registered user from being automatically logged on by commenting out the following line:
->
-> ```csharp
-> //await _signInManager.SignInAsync(user, isPersistent: false);
-> ```
+* Add `EmailSender` as a transient service.
+* Register the `AuthMessageSenderOptions` configuration instance.
 
-*  Enable password recovery by uncommenting the code in the `ForgotPassword` action in the *Controllers/AccountController.cs* file.
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Program.cs?name=snippet1&highlight=2,5,18-19)]
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Controllers/AccountController.cs?highlight=17-21&range=272-297)]
-
-Uncomment the highlighted `ForgotPassword` from in the *Views/Account/ForgotPassword.cshtml* view file.
-
-[!code-html[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Views/Account/ForgotPassword.cshtml?highlight=11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27)]
+<!-- instructions when you scaffold RegisterConfirmation -->
+[!INCLUDE[](~/includes/disableVer6.md)]
 
 ## Register, confirm email, and reset password
 
-In this section, run the web app and show the account confirmation and password recovery flow.
+Run the web app, and test the account confirmation and password recovery flow.
 
-* Run the application and register a new user
-
-![image](accconfirm/_static/loginaccconfirm1.png)
-
-* Check your email for the account confirmation link. If you don't get the email notification:
-
-  * Check the SendGrid web site to verify your sent mail messages.
-
-  * Check your spam folder.
-
-  * Try another email alias on a different email provider (Microsoft, Yahoo, Gmail, etc.)
-
-  * In SSOX, navigate to **dbo.AspNetUsers** and delete the email entry and try again.
-
+* Run the app and register a new user
+* Check your email for the account confirmation link. See [Debug email](#debug) if you don't get the email.
 * Click the link to confirm your email.
-
-* Log in with your email and password.
-
-* Log off.
+* Sign in with your email and password.
+* Sign out.
 
 ### Test password reset
 
-* Login and select **Forgot your password?**
-
+* If you're signed in, select **Logout**.
+* Select the **Log in** link and select the **Forgot your password?** link.
 * Enter the email you used to register the account.
+* An email with a link to reset your password is sent. Check your email and click the link to reset your password. After your password has been successfully reset, you can sign in with your email and new password.
 
-* An email with a link to reset your password will be sent. Check your email and click the link to reset your password.  After your password has been successfully reset, you can login with your email and new password.
+<a name="resend"></a>
 
-## Require email confirmation before login
+## Resend email confirmation
 
-With the current templates, once a user completes the registration form, they are logged in (authenticated). You generally want to confirm their email before logging them in. In the section below, we will modify the code to require new users have a confirmed email before they are logged in. Update the `[HttpPost] Login` action in the *AccountController.cs* file with the following highlighted changes.
+Select the **Resend email confirmation** link on the **Login** page.
 
-[!code-csharp[Main](accconfirm/sample/WebApplication3/src/WebApplication3/Controllers/AccountController.cs?highlight=11-20&range=51-96)]
+### Change email and activity timeout
 
-> [!NOTE]
-> A security best practice is to not use production secrets in test and development. If you publish the app to Azure, you can set the SendGrid secrets as application settings in the Azure Web App portal. The configuration system is setup to read keys from environment variables.
+The default inactivity timeout is 14 days. The following code sets the inactivity timeout to 5 days:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Program.cs?name=snippet_timeout&highlight=21-24)]
+
+### Change all data protection token lifespans
+
+The following code changes all data protection tokens timeout period to 3 hours:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Program.cs?name=snippet_dpt&highlight=21-22)]
+
+The built in Identity user tokens (see [AspNetCore/src/Identity/Extensions.Core/src/TokenOptions.cs](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Extensions.Core/src/TokenOptions.cs) )have a [one day timeout](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Core/src/DataProtectionTokenProviderOptions.cs).
+
+### Change the email token lifespan
+
+The default token lifespan of [the Identity user tokens](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Extensions.Core/src/TokenOptions.cs) is [one day](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Core/src/DataProtectionTokenProviderOptions.cs). This section shows how to change the email token lifespan.
+
+Add a custom <xref:Microsoft.AspNetCore.Identity.DataProtectorTokenProvider%601> and <xref:Microsoft.AspNetCore.Identity.DataProtectionTokenProviderOptions>:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/TokenProviders/CustomTokenProvider.cs?name=snippet1)]
+
+Add the custom provider to the service container:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Program.cs?name=snippet_etl&highlight=18-24)]
+
+<a name="debug"></a>
+
+### Debug email
+
+If you can't get email working:
+
+* Set a breakpoint in `EmailSender.Execute` to verify `SendGridClient.SendEmailAsync` is called.
+* Create a [console app to send email](https://sendgrid.com/docs/Integrate/Code_Examples/v2_Mail/csharp.html) using similar code to `EmailSender.Execute`.
+* Review the [Email Activity](https://sendgrid.com/docs/User_Guide/email_activity.html) page.
+* Check your spam folder.
+* Try another email alias on a different email provider (Microsoft, Yahoo, Gmail, etc.)
+* Try sending to different email accounts.
+
+**A security best practice** is to **not** use production secrets in test and development. If you publish the app to Azure, set the SendGrid secrets as application settings in the Azure Web App portal. The configuration system is set up to read keys from environment variables.
 
 ## Combine social and local login accounts
 
-To complete this section, you must first enable an external authentication provider. See [Enabling authentication using Facebook, Google and other external providers](social/index.md).
+To complete this section, you must first enable an external authentication provider. See [Facebook, Google, and external provider authentication](xref:security/authentication/social/index).
 
-You can combine local and social accounts by clicking on your email link. In the following sequence "RickAndMSFT@gmail.com" is first created as a local login, but you can create the account as a social login first, then add a local login.
+You can combine local and social accounts by clicking on your email link. In the following sequence, "RickAndMSFT@gmail.com" is first created as a local login; however, you can create the account as a social login first, then add a local login.
 
-![image](accconfirm/_static/rick.png)
+![Web application: RickAndMSFT@gmail.com user authenticated](accconfirm/_static/rick.png)
 
 Click on the **Manage** link. Note the 0 external (social logins) associated with this account.
 
-![image](accconfirm/_static/manage.png)
+![Manage view](accconfirm/_static/manage.png)
 
-Click the link to another login service and accept the app requests. In the image below, Facebook is the external authentication provider:
+Click the link to another login service and accept the app requests. In the following image, Facebook is the external authentication provider:
 
-![image](accconfirm/_static/fb.png)
+![Manage your external logins view listing Facebook](accconfirm/_static/fb.png)
 
-The two accounts have been combined. You will be able to log on with either account. You might want your users to add local accounts in case their social log in authentication service is down, or more likely they have lost access to their social account.
+The two accounts have been combined. You are able to sign in with either account. You might want your users to add local accounts in case their social login authentication service is down, or more likely they've lost access to their social account.
+
+## Enable account confirmation after a site has users
+
+Enabling account confirmation on a site with users locks out all the existing users. Existing users are locked out because their accounts aren't confirmed. To work around existing user lockout, use one of the following approaches:
+
+* Update the database to mark all existing users as being confirmed.
+* Confirm existing users. For example, batch-send emails with confirmation links.
+
+:::moniker-end
+
+:::moniker range="< aspnetcore-6.0"
+
+## Prerequisites
+
+[.NET Core 3.0 or later SDK](https://dotnet.microsoft.com/download/dotnet-core/3.0)
+
+## Create and test a web app with authentication
+
+Run the following commands to create a web app with authentication.
+
+```dotnetcli
+dotnet new webapp -au Individual -uld -o WebPWrecover
+cd WebPWrecover
+dotnet run
+```
+
+Run the app, select the **Register** link, and register a user. Once registered, you are redirected to the to `/Identity/Account/RegisterConfirmation` page which contains a link to simulate email confirmation:
+
+* Select the `Click here to confirm your account` link.
+* Select the **Login** link and sign-in with the same credentials.
+* Select the `Hello YourEmail@provider.com!` link, which redirects you to the `/Identity/Account/Manage/PersonalData` page.
+* Select the **Personal data** tab on the left, and then select **Delete**.
+
+### Configure an email provider
+
+In this tutorial, [SendGrid](https://sendgrid.com) is used to send email. You can use other email providers. We recommend you use SendGrid or another email service to send email. SMTP is difficult to configure so mail is not marked as spam.
+
+The SendGrid account may require [adding a Sender](https://sendgrid.com/docs/ui/sending-email/senders/).
+
+Create a class to fetch the secure email key. For this sample, create `Services/AuthMessageSenderOptions.cs`:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Services/AuthMessageSenderOptions.cs)]
+
+#### Configure SendGrid user secrets
+
+Set the `SendGridKey` with the [secret-manager tool](xref:security/app-secrets). For example:
+
+```dotnetcli
+dotnet user-secrets set SendGridKey <SG.key>
+
+Successfully saved SendGridKey = SG.keyVal to the secret store.
+```
+
+On Windows, Secret Manager stores keys/value pairs in a `secrets.json` file in the `%APPDATA%/Microsoft/UserSecrets/<WebAppName-userSecretsId>` directory.
+
+The contents of the `secrets.json` file aren't encrypted. The following markup shows the `secrets.json` file. The `SendGridKey` value has been removed.
+
+```json
+{
+  "SendGridKey": "<key removed>"
+}
+```
+
+For more information, see the [Options pattern](xref:fundamentals/configuration/options) and [configuration](xref:fundamentals/configuration/index).
+
+### Install SendGrid
+
+This tutorial shows how to add email notifications through [SendGrid](https://sendgrid.com/), but you can send email using SMTP and other mechanisms.
+
+Install the `SendGrid` NuGet package:
+
+# [Visual Studio](#tab/visual-studio)
+
+From the Package Manager Console, enter the following command:
+
+```powershell
+Install-Package SendGrid
+```
+
+# [.NET CLI](#tab/net-cli)
+
+From the console, enter the following command:
+
+```dotnetcli
+dotnet add package SendGrid
+```
+
+---
+
+See [Get Started with SendGrid for Free](https://sendgrid.com/free/) to register for a free SendGrid account.
+
+### Implement IEmailSender
+
+To Implement `IEmailSender`, create `Services/EmailSender.cs` with code similar to the following:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Services/EmailSender.cs)]
+
+### Configure startup to support email
+
+Add the following code to the `ConfigureServices` method in the `Startup.cs` file:
+
+* Add `EmailSender` as a transient service.
+* Register the `AuthMessageSenderOptions` configuration instance.
+
+[!code-csharp[](accconfirm/sample/WebPWrecover60/Program.cs?name=snippet1&highlight=2,5,19-20)]
+
+## Scaffold RegisterConfirmation
+
+Follow the instructions for [Scaffold Identity](xref:security/authentication/scaffold-identity) and scaffold `Account\RegisterConfirmation`.
+
+<!-- .NET 5 fixes this, see
+https://github.com/dotnet/aspnetcore/blob/main/src/Identity/UI/src/Areas/Identity/Pages/V4/Account/RegisterConfirmation.cshtml.cs#L74-L77
+-->
+
+[!INCLUDE[](~/includes/disableVer6.md)]
+
+## Register, confirm email, and reset password
+
+Run the web app, and test the account confirmation and password recovery flow.
+
+* Run the app and register a new user
+* Check your email for the account confirmation link. See [Debug email](#debug) if you don't get the email.
+* Click the link to confirm your email.
+* Sign in with your email and password.
+* Sign out.
+
+### Test password reset
+
+* If you're signed in, select **Logout**.
+* Select the **Log in** link and select the **Forgot your password?** link.
+* Enter the email you used to register the account.
+* An email with a link to reset your password is sent. Check your email and click the link to reset your password. After your password has been successfully reset, you can sign in with your email and new password.
+
+<a name="resend"></a>
+
+## Resend email confirmation
+
+In .NET 5 or later, select the **Resend email confirmation** link on the **Login** page.
+
+### Change email and activity timeout
+
+The default inactivity timeout is 14 days. The following code sets the inactivity timeout to 5 days:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover30/StartupAppCookie.cs?name=snippet1)]
+
+### Change all data protection token lifespans
+
+The following code changes all data protection tokens timeout period to 3 hours:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover30/StartupAllTokens.cs?name=snippet1&highlight=11-12)]
+
+The built in Identity user tokens (see [AspNetCore/src/Identity/Extensions.Core/src/TokenOptions.cs](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Extensions.Core/src/TokenOptions.cs) )have a [one day timeout](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Core/src/DataProtectionTokenProviderOptions.cs).
+
+### Change the email token lifespan
+
+The default token lifespan of [the Identity user tokens](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Extensions.Core/src/TokenOptions.cs) is [one day](https://github.com/dotnet/AspNetCore/blob/v2.2.2/src/Identity/Core/src/DataProtectionTokenProviderOptions.cs). This section shows how to change the email token lifespan.
+
+Add a custom <xref:Microsoft.AspNetCore.Identity.DataProtectorTokenProvider%601> and <xref:Microsoft.AspNetCore.Identity.DataProtectionTokenProviderOptions>:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover30/TokenProviders/CustomTokenProvider.cs?name=snippet1)]
+
+Add the custom provider to the service container:
+
+[!code-csharp[](accconfirm/sample/WebPWrecover30/StartupEmail.cs?name=snippet1&highlight=10-16)]
+
+<a name="debug"></a>
+
+### Debug email
+
+If you can't get email working:
+
+* Set a breakpoint in `EmailSender.Execute` to verify `SendGridClient.SendEmailAsync` is called.
+* Create a [console app to send email](https://sendgrid.com/docs/Integrate/Code_Examples/v2_Mail/csharp.html) using similar code to `EmailSender.Execute`.
+* Review the [Email Activity](https://sendgrid.com/docs/User_Guide/email_activity.html) page.
+* Check your spam folder.
+* Try another email alias on a different email provider (Microsoft, Yahoo, Gmail, etc.)
+* Try sending to different email accounts.
+
+**A security best practice** is to **not** use production secrets in test and development. If you publish the app to Azure, set the SendGrid secrets as application settings in the Azure Web App portal. The configuration system is set up to read keys from environment variables.
+
+## Combine social and local login accounts
+
+To complete this section, you must first enable an external authentication provider. See [Facebook, Google, and external provider authentication](xref:security/authentication/social/index).
+
+You can combine local and social accounts by clicking on your email link. In the following sequence, "RickAndMSFT@gmail.com" is first created as a local login; however, you can create the account as a social login first, then add a local login.
+
+![Web application: RickAndMSFT@gmail.com user authenticated](accconfirm/_static/rick.png)
+
+Click on the **Manage** link. Note the 0 external (social logins) associated with this account.
+
+![Manage view](accconfirm/_static/manage.png)
+
+Click the link to another login service and accept the app requests. In the following image, Facebook is the external authentication provider:
+
+![Manage your external logins view listing Facebook](accconfirm/_static/fb.png)
+
+The two accounts have been combined. You are able to sign in with either account. You might want your users to add local accounts in case their social login authentication service is down, or more likely they've lost access to their social account.
+
+## Enable account confirmation after a site has users
+
+Enabling account confirmation on a site with users locks out all the existing users. Existing users are locked out because their accounts aren't confirmed. To work around existing user lockout, use one of the following approaches:
+
+* Update the database to mark all existing users as being confirmed.
+* Confirm existing users. For example, batch-send emails with confirmation links.
+
+:::moniker-end
