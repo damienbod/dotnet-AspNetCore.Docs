@@ -1,92 +1,157 @@
 ---
-title: Working with SQL Server LocalDB | Microsoft Docs
-author: rick-anderson
-description: 
-keywords: ASP.NET Core,
-ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: ff8fd9b8-7c98-424d-8641-7524e23bf541
-ms.technology: aspnet
-ms.prod: aspnet-core
+title: Part 5, work with a database in an ASP.NET Core MVC app
+ai-usage: ai-assisted
+author: wadepickett
+description: Part 5 of tutorial series on ASP.NET Core MVC.
+monikerRange: '>= aspnetcore-3.1'
+ms.author: wpickett
+ms.custom: sfi-ropc-nochange
+ms.date: 04/03/2026
 uid: tutorials/first-mvc-app/working-with-sql
 ---
-# Working with SQL Server LocalDB
 
-The `ApplicationDbContext` class handles the task of connecting to the database and mapping `Movie` objects to database records. The database context is registered with the [Dependency Injection](../../fundamentals/dependency-injection.md) container in the `ConfigureServices` method in the *Startup.cs* file:
+# Part 5, work with a database in an ASP.NET Core MVC app
 
-[!code-csharp[Main](start-mvc/sample2/src/MvcMovie/Startup.cs?name=snippet_details)]
+[!INCLUDE[](~/includes/not-latest-version.md)]
 
-The ASP.NET Core [Configuration](../../fundamentals/configuration.md) system reads the `ConnectionString`. For local development, it gets the connection string from the *appsettings.json* file:
+:::moniker range=">= aspnetcore-10.0"
 
-[!code-javascript[Main](../../tutorials/first-mvc-app/start-mvc/sample2/src/MvcMovie/appsettings.json?highlight=3&range=1-6)]
+## Introduction
 
-When you deploy the app to a test or production server, you can use an environment variable or another approach to set the connection string to a real SQL Server. See [Configuration](../../fundamentals/configuration.md) .
+This part of the tutorial series focuses on working with a SQL database in your ASP.NET Core MVC application.
+
+You’ll learn how to:
+
+- Register and configure the Entity Framework Core database context for your ASP.NET Core MVC app.
+- Work with database connection strings for local development.
+- Use SQL Server Express LocalDB for development and examine your database and data using SQL Server Object Explorer.
+- Seed your database with initial sample data.
+
+## Prerequisite
+
+This tutorial uses a database you set up in the previous step: <xref:tutorials/first-mvc-app/adding-model>.
+
+## Working with the database context
+
+The `MvcMovieContext` object handles the task of connecting to the database and mapping `Movie` objects to database records. The database context is registered with the [Dependency Injection](xref:fundamentals/dependency-injection) container in the `Program.cs` file:
+
+# [Visual Studio](#tab/visual-studio)
+
+[!code-csharp[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/Program.cs?name=snippet_FirstSQLServer&highlight=2-3)]
+
+The ASP.NET Core [Configuration](xref:fundamentals/configuration/index) system reads the `ConnectionString` key. For local development, it gets the connection string from the `appsettings.json` file:
+
+[!code-json[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/appsettings.json?highlight=2&range=9-11)]
+
+# [Visual Studio Code](#tab/visual-studio-code)
+
+[!code-csharp[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/Program.cs?name=snippet_FirstSQLite&highlight=3-4)]
+
+The ASP.NET Core [Configuration](xref:fundamentals/configuration/index) system reads the `ConnectionString`. For local development, it gets the connection string from the `appsettings.json` file:
+
+[!code-json[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/appsettings_SQLite.json?highlight=2&range=9-11)]
+
+---
+
+[!INCLUDE [managed-identities](~/includes/managed-identities-test-non-production.md)]
+
+# [Visual Studio](#tab/visual-studio)
 
 ## SQL Server Express LocalDB
 
-LocalDB is a lightweight version of the SQL Server Express Database Engine that is targeted for program development. LocalDB starts on demand and runs in user mode, so there is no complex configuration. By default, LocalDB database creates "\*.mdf" files in the *C:/Users/\<user\>* directory.
+LocalDB:
 
-* From the **View** menu, open **SQL Server Object Explorer** (SSOX).
+* Is a lightweight version of the SQL Server Express Database Engine, installed by default with Visual Studio.
+* Starts on demand by using a connection string.
+* Is targeted for program development. It runs in user mode, so there's no complex configuration.
+* By default creates *.mdf* files in the *C:/Users/{user}* directory.
 
-![image](working-with-sql/_static/ssox.png)
+### Examine the database
 
-* Right click on the `Movie` table **> View Designer**
+From the **View** menu, open **SQL Server Object Explorer** (SSOX).
 
-![image](working-with-sql/_static/design.png)
+Right-click on the `Movie` table (`dbo.Movie`) **> View Designer**
 
-![image](working-with-sql/_static/dv.png)
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/view-designer.png" alt-text="Right-click on the Movie table > View Designer.":::
 
-Note the key icon next to `ID`. By default, EF will make a property named `ID` the primary key.
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/designer-view.png" alt-text="Movie table open in Designer.":::
 
-* Right click on the `Movie` table **> View Data**
+Note the key icon next to `ID`. By default, EF makes a property named `ID` the primary key.
 
-![image](working-with-sql/_static/ssox2.png)
+Right-click on the `Movie` table **> View Data**
 
-![image](working-with-sql/_static/vd22.png)
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/view-data.png" alt-text="Right-click on the Movie table > View Data.":::
+
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/empty-movie-data.png" alt-text="Movie table open showing no data.":::
+-->
+
+# [Visual Studio Code](#tab/visual-studio-code)
+
+[!INCLUDE[](~/includes/rp/sqlite.md)]
+[!INCLUDE[](~/includes/RP-mvc-shared/sqlite-warn.md)]
+
+---
+<!-- End of VS tabs -->
 
 ## Seed the database
 
 Create a new class named `SeedData` in the *Models* folder. Replace the generated code with the following:
 
-[!code-csharp[Main](start-mvc/sample2/src/MvcMovie/Models/SeedData.cs?name=snippet_1)]
+[!code-csharp[](~/tutorials/first-mvc-app/start-mvc/sample/mvcmovie10/Models/SeedData.cs?name=snippet_FirstVersion)]
 
-Notice if there are any movies in the DB, the seed initializer returns.
+If there are any movies in the database, the seed initializer returns and no movies are added.
 
 ```csharp
 if (context.Movie.Any())
 {
-    return;   // DB has been seeded.
+    return;  // DB has been seeded.
 }
 ```
 
-Add the seed initializer to the end of the `Configure` method in the *Startup.cs* file:
+<a name="si"></a>
 
-[!code-csharp[Main](start-mvc/sample2/src/MvcMovie/Startup.cs?highlight=9&range=79-)]
+### Add the seed initializer
 
-Test the app
+# [Visual Studio](#tab/visual-studio)
 
-* Delete all the records in the DB. You can do this with the delete links in the browser or from SSOX.
-* Force the app to initialize (call the methods in the `Startup` class) so the seed method runs. To force initialization, IIS Express must be stopped and restarted. You can do this with any of the following approaches:
+Replace the contents of `Program.cs` with the following code. The new code is highlighted.
 
-  * Right click the IIS Express system tray icon in the notification area and tap **Exit** or **Stop Site**
+[!code-csharp[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/Program.cs?name=snippet_SQLServerSeedData&highlight=4,14-20)]
 
+Test the app. Force the app to initialize, calling the code in the `Program.cs` file, so the seed method runs. To force initialization, close the command prompt window that Visual Studio opened, and restart by pressing Ctrl+F5.
 
-![image](working-with-sql/_static/iisExIcon.png)
+# [Visual Studio Code](#tab/visual-studio-code)
 
-![image](working-with-sql/_static/stopIIS.png)
+Update `Program.cs` with the following highlighted code:
 
-   * If you were running VS in non-debug mode, press F5 to run in debug mode
-   * If you were running VS in debug mode, stop the debugger and press ^F5
-   * If the database doesn't initialize, put a break point on the line `if (context.Movie.Any())` and start debugging.
+[!code-csharp[](~/tutorials/first-mvc-app/start-mvc/sample/MvcMovie10/Program.cs?name=snippet_SQLiteSeedData&highlight=4,15-20)]
 
-![image](working-with-sql/_static/dbg.png)
+Test the app. Stop it and restart it so the `SeedData.Initialize` method runs and seeds the database.
+
+---
 
 The app shows the seeded data.
 
-![image](working-with-sql/_static/m55.png)
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/seeded-movies.png" alt-text="MVC Movie app open in Microsoft Edge showing movie data.":::
 
->[!div class="step-by-step"]
-[Previous](adding-model.md)
-[Next](controller-methods-views.md)  
+And a refresh of the `Movie` table shows the same data.
+
+:::image type="content" source="~/tutorials/first-mvc-app/working-with-sql/media/seeded-movie-data.png" alt-text="Movie table has seeded data.":::
+
+[!INCLUDE[](~/includes/localization/currency.md)]
+
+> [!div class="step-by-step"]
+> [Previous: Adding a model](~/tutorials/first-mvc-app/adding-model.md)
+> [Next: Adding controller methods and views](~/tutorials/first-mvc-app/controller-methods-views.md)
+
+:::moniker-end
+
+[!INCLUDE[](~/tutorials/first-mvc-app/working-with-sql/includes/working-with-sql9.md)]
+
+[!INCLUDE[](~/tutorials/first-mvc-app/working-with-sql/includes/working-with-sql8.md)]
+
+[!INCLUDE[](~/tutorials/first-mvc-app/working-with-sql/includes/working-with-sql7.md)]
+
+[!INCLUDE[](~/tutorials/first-mvc-app/working-with-sql/includes/working-with-sql6.md)]
+
+[!INCLUDE[](~/tutorials/first-mvc-app/working-with-sql/includes/working-with-sql3-5.md)]

@@ -1,22 +1,15 @@
 ---
-title: Migration | Microsoft Docs
-author: rick-anderson
-description: 
-keywords: ASP.NET Core,
-ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: a8fb7eb7-e0e5-4394-84f3-1f1dbe0a2c3e
-ms.technology: aspnet
-ms.prod: aspnet-core
+title: Migrate an ASP.NET Core app
+ai-usage: ai-assisted
+author: wadepickett
+description: Migrate ASP.NET Core apps efficiently using expert guidance. Learn how to upgrade .NET versions and move from ASP.NET Framework. Get started now.
+ms.author: wpickett
+ms.reviewer: tsouthwick
+ms.date: 07/03/2026
+uid: migration/index
 ---
-# Migration
+# Migrate an ASP.NET Core app
 
-*   [Migrating From ASP.NET MVC to ASP.NET Core MVC](mvc.md)
-*   [Migrating Configuration](configuration.md)
-*   [Migrating Authentication and Identity](identity.md)
-*   [Migrating from ASP.NET Web API](webapi.md)
-*   [Migrating HTTP Modules to Middleware](http-modules.md)
-*   [Migrating from ASP.NET 5 RC1 to ASP.NET Core 1.0](rc1-to-rtm.md)
-*   [Migrating from ASP.NET Core RC2 to ASP.NET Core 1.0](rc2-to-rtm.md)
+Use the guidance in this node to migrate an ASP.NET Core app.
+
+For AI-assisted upgrades and modernization—including moving from ASP.NET Framework to ASP.NET Core, upgrading between .NET versions, and modernizing to the cloud—see [GitHub Copilot app modernization](/dotnet/core/porting/github-copilot-app-modernization/overview) and [Overview of upgrading .NET apps](/dotnet/core/porting/).

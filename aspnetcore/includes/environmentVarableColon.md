@@ -1,0 +1,1 @@
+The colon (`:`) separator doesn't work with environment variable hierarchical keys on all platforms. For example, [Bash](https://linuxhint.com/bash-environment-variables/) doesn't support colon (`:`) as a separator. All platforms support the double underscore (`__`) syntax and automatically replace it with a colon (`:`).

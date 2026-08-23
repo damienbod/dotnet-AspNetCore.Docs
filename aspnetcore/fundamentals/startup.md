@@ -1,74 +1,98 @@
 ---
-title: Application Startup | Microsoft Docs
-author: ardalis
-description: Explains the Startup class in ASP.NET Core.
-keywords: ASP.NET Core, Startup, Configure method, ConfigureServices method
-ms.author: tdykstra
-manager: wpickett
-ms.date: 11/29/2016
-ms.topic: article
-ms.assetid: 6538df00-4ec2-45e4-811a-d7ce2ee608ed
-ms.technology: aspnet
-ms.prod: aspnet-core
+title: App startup in ASP.NET Core
+author: wadepickett
+description: Learn how the Startup class in ASP.NET Core configures services and the app's request pipeline.
+monikerRange: '>= aspnetcore-3.1'
+ms.author: wpickett
+ms.date: 04/24/2026
 uid: fundamentals/startup
+
+# customer intent: As an ASP.NET developer, I want to explore the Startup class in ASP.NET Core, so I can configure services and the request pipeline for my apps.
 ---
-# Application Startup
+# App startup in ASP.NET Core
 
-By [Steve Smith](http://ardalis.com) and [Tom Dykstra](https://github.com/tdykstra/)
+[!INCLUDE[](~/includes/not-latest-version.md)]
 
-The `Startup` class configures the request pipeline that handles all requests made to the application.
+By [Rick Anderson](https://twitter.com/RickAndMSFT)
 
-## The Startup class
+:::moniker range=">= aspnetcore-7.0"
 
-All ASP.NET applications require at least one `Startup` class. When an application starts, ASP.NET searches the primary assembly for a class named `Startup` (in any namespace). You can specify a different assembly to search using the *Hosting:Application* configuration key. The class doesn't have to be `public`. If there are multiple `Startup` classes, ASP.NET looks for one in the project's root namespace, otherwise it chooses one in the alphabetically first namespace.
+ASP.NET Core apps created with the web templates contain the application startup code in the _Program.cs_ file.
 
-You can define separate `Startup` classes for different environments, and the appropriate one will be selected at runtime. Learn more in [Working with multiple environments](environments.md#startup-conventions).
+For Blazor startup guidance, which adds to or supersedes the guidance in this article, see [ASP.NET Core Blazor startup](xref:blazor/fundamentals/startup).
 
-The `Startup` class constructor can accept dependencies that are provided through [dependency injection](dependency-injection.md). You can use `IHostingEnvironment` to set up [configuration](configuration.md) sources and `ILoggerFactory` to set up [logging](logging.md) providers. 
+The following app startup code supports several app types:
 
-The `Startup` class must include a `Configure` method and can optionally include a `ConfigureServices` method, both of which are called when the application starts. The class can also include [environment-specific versions of these methods](environments.md#startup-conventions).
+* [Blazor Web Apps](xref:blazor/index#build-a-full-stack-web-app-with-blazor)
+* [Razor Pages](xref:tutorials/razor-pages/razor-pages-start)
+* [MVC controllers with views](xref:tutorials/first-mvc-app/start-mvc)
+* [Web API with controllers](xref:tutorials/first-web-api)
+* [Minimal APIs](xref:tutorials/min-web-api)
 
-## The Configure method
+[!code-csharp[](~/fundamentals/startup/9.0_samples/WebAll/Program.cs?name=snippet)]
 
-The `Configure` method is used to specify how the ASP.NET application will respond to HTTP requests. The request pipeline is configured by adding [middleware](middleware.md) components to an `IApplicationBuilder` instance that is provided by dependency injection.
+Apps that use the <xref:System.Diagnostics.Tracing.EventSource> can measure the startup time to understand and optimize startup performance. The <!--keep-->[ServerReady](https://source.dot.net/#Microsoft.AspNetCore.Hosting/Internal/HostingEventSource.cs,76) event in the <xref:Microsoft.AspNetCore.Hosting?displayProperty=fullName> represents the point where the server is ready to respond to requests.
 
-In the following example from the default web site template, several extension methods are used to configure the pipeline with support for [BrowserLink](http://vswebessentials.com/features/browserlink), error pages, static files, ASP.NET MVC, and Identity.
+<a name="IStartupFilter"></a>
 
-[!code-csharp[Main](../common/samples/WebApplication1/Startup.cs?highlight=8,9,10,14,17,19,21&start=58&end=84)]
+## Extend Startup with startup filters
 
-Each `Use` extension method adds a [middleware](middleware.md) component to the request pipeline. For instance, the `UseMvc` extension method adds the [routing](routing.md) middleware to the request pipeline and configures [MVC](../mvc/index.md) as the default handler.
+Use <xref:Microsoft.AspNetCore.Hosting.IStartupFilter>:
 
-For more information about how to use `IApplicationBuilder`, see [Middleware](middleware.md).
+* To configure middleware at the beginning or end of an app's middleware pipeline without an explicit call to `Use{Middleware}`. Use `IStartupFilter` to add defaults to the beginning of the pipeline without explicitly registering the default middleware. `IStartupFilter` allows a different component to call `Use{Middleware}` on behalf of the app author.
 
-Additional services, like `IHostingEnvironment` and `ILoggerFactory` may also be specified in the method signature, in which case these services will be [injected](dependency-injection.md) if they are available. 
+* To create a pipeline of `Configure` methods. [IStartupFilter.Configure](xref:Microsoft.AspNetCore.Hosting.IStartupFilter.Configure%2A) can set a middleware to run before or after middleware added by libraries.
 
-## The ConfigureServices method
+An `IStartupFilter` implementation provides a <xref:Microsoft.AspNetCore.Hosting.StartupBase.Configure%2A> method that receives and returns an Action\<IApplicationBuilder>. An <xref:Microsoft.AspNetCore.Builder.IApplicationBuilder> defines a class to configure an app's request pipeline. For more information, see [Create a middleware pipeline with IApplicationBuilder](xref:fundamentals/middleware/index#create-a-middleware-pipeline-with-iapplicationbuilder).
 
-The `Startup` class can include a `ConfigureServices` method that takes an `IServiceCollection` parameter and optionally returns an `IServiceProvider`. The `ConfigureServices` method is called before `Configure`, as some features must be added before they can be wired up to the request pipeline.
+Each `IStartupFilter` implementation can add one or more middlewares in the request pipeline. The filters are invoked in the order they were added to the service container. Filters can add middleware before or after passing control to the next filter, thus they append to the beginning or end of the app pipeline.
 
-For features that require substantial setup there are `Add[Something]` extension methods on `IServiceCollection`. This example from the default web site template configures the app to use services for Entity Framework, Identity, and MVC:
+The following example demonstrates how to register a middleware with `IStartupFilter`. The `RequestSetOptionsMiddleware` middleware sets an options value from a query string parameter:
 
-[!code-csharp[Main](../common/samples/WebApplication1/Startup.cs?highlight=4,7,11&start=40&end=55)]
+[!code-csharp[](~/fundamentals/startup/7/WebStartup/Middleware/RequestSetOptionsMiddleware.cs?name=snippet1)]
 
-Adding services to the services container makes them available within your application via [dependency injection](dependency-injection.md).
+The `RequestSetOptionsMiddleware` is configured in the `RequestSetOptionsStartupFilter` class:
 
-The `ConfigureServices` method is also where you should add configuration option classes. Learn more in [Configuration](configuration.md).
+[!code-csharp[](~/fundamentals/startup/7/WebStartup/Middleware/RequestSetOptionsStartupFilter.cs?name=snippet1&highlight=7)]
 
-## Services Available in Startup
+The `IStartupFilter` implementation is registered in the _Program.cs_ file:
 
-ASP.NET Core dependency injection provides application services during an application's startup. You can request these services by including the appropriate interface as a parameter on your `Startup` class's constructor or one of its `Configure` or `ConfigureServices` methods. 
+[!code-csharp[](~/fundamentals/startup/7/WebStartup/Program.cs?highlight=6-7)]
 
-Looking at each method in the `Startup` class in the order in which they are called, the following services may be requested as parameters:
+When a query string parameter for `option` is provided, the middleware processes the value assignment before the ASP.NET Core middleware renders the response:
 
-* In the constructor:  `IHostingEnvironment`, `ILoggerFactory`
+[!code-cshtml[](~/fundamentals/startup/7/WebStartup/Pages/Privacy.cshtml?highlight=9)]
 
-* In the `ConfigureServices` method:  `IServiceCollection`
+Middleware execution order is set by the order of `IStartupFilter` registrations:
 
-* In the `Configure` method:  `IApplicationBuilder`, `IHostingEnvironment`, `ILoggerFactory`
+* Multiple `IStartupFilter` implementations might interact with the same objects. If ordering is important, order their `IStartupFilter` service registrations to match the order that their middlewares should run.
 
-## Additional Resources
+* Libraries can add middleware with one or more `IStartupFilter` implementations that run before or after other app middleware registered with `IStartupFilter`. To invoke an `IStartupFilter` middleware before a middleware added by a library's `IStartupFilter`:
 
-* [Working with Multiple Environments](environments.md)
-* [Middleware](middleware.md)
-* [Logging](logging.md)
-* [Configuration](configuration.md)
+  * Position the service registration before the library is added to the service container.
+
+  * To invoke afterward, position the service registration after the library is added.
+
+You can't extend the ASP.NET Core app when you override `Configure`. For more information, see [GitHub /dotnet/aspnetcore/issues #45372](https://github.com/dotnet/aspnetcore/issues/45372).
+
+## Add configuration at startup from an external assembly
+
+An <xref:Microsoft.AspNetCore.Hosting.IHostingStartup> implementation allows adding enhancements to an app at startup from an external assembly outside of the application _Program.cs_ file. For more information, see [Use hosting startup assemblies in ASP.NET Core](xref:fundamentals/configuration/platform-specific-configuration).
+
+## Startup, ConfigureServices, and Configure
+
+For information on using the <xref:Microsoft.AspNetCore.Hosting.StartupBase.ConfigureServices%2A> and <xref:Microsoft.AspNetCore.Hosting.StartupBase.Configure%2A> methods with the minimal hosting model, see:
+
+* [Use Startup with the minimal hosting model](xref:migration/50-to-60#smhm)
+* [The Startup Class (.NET 5 version of this article)](?view=aspnetcore-5.0&preserve-view=true#the-startup-class):
+  * [The ConfigureServices method](?view=aspnetcore-5.0&preserve-view=true#the-configureservices-method)
+  * [The Configure method](?view=aspnetcore-5.0&preserve-view=true#the-configure-method)
+
+## Related content
+
+- [ASP.NET Core fundamentals overview](./index.md)
+- [Configuration in ASP.NET Core](./configuration/index.md)
+
+:::moniker-end
+
+[!INCLUDE[](~/fundamentals/startup/includes/startup56.md)]

@@ -1,0 +1,20 @@
+{
+    "AzureDevOps": {
+        "Org": "msft-skilling",
+        "Project": "Content",
+        "AreaPath": "Production\\Core AI\\DotNet and more\\ASP.NET"
+    },
+    "ImportTriggerLabel": "reQUEST",
+    "ImportedLabel": "seQUESTered",
+    "DefaultParentNode": 403735,
+    "WorkItemTags": [
+        {
+            "Label": "9.0",
+            "Tag": "new feature"
+        },
+        {
+            "Label": "okr-curation",
+            "Tag": "content-curation"
+        }
+    ]
+}

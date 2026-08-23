@@ -1,75 +1,85 @@
 ---
-title: Simple Authorization | Microsoft Docs
-author: rick-anderson
-description: 
-keywords: ASP.NET Core,
-ms.author: riande
-manager: wpickett
-ms.date: 10/14/2016
-ms.topic: article
-ms.assetid: 391bcaad-205f-43e4-badc-fa592d6f79f3
-ms.technology: aspnet
-ms.prod: aspnet-core
+title: Simple authorization in ASP.NET Core
+ai-usage: ai-assisted
+author: tdykstra
+description: Learn how to use the [Authorize] attribute to restrict access in ASP.NET Core apps.
+monikerRange: '>= aspnetcore-3.1'
+ms.author: tdykstra
+ms.date: 03/05/2026
 uid: security/authorization/simple
 ---
-# Simple Authorization
+# Simple authorization in ASP.NET Core
 
-<a name=security-authorization-simple></a>
+Authorization in ASP.NET Core is controlled with the [`[Authorize]` attribute](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) and its various parameters. In its most basic form, applying the `[Authorize]` attribute to a Razor component, controller, action, or Razor Page, limits access to that component to authenticated users.
 
-Authorization in MVC is controlled through the `AuthorizeAttribute` attribute and its various parameters. At its simplest applying the `AuthorizeAttribute` attribute to a controller or action limits access to the controller or action to any authenticated user.
+This article uses Blazor Razor component examples and focuses on Blazor authorization scenarios. For Razor Pages and MVC guidance, see the following resources after reading this article:
 
-For example, the following code limits access to the `AccountController` to any authenticated user.
+* <xref:razor-pages/security/authorization/simple>
+* <xref:mvc/security/authorization/simple>
 
-```csharp
-[Authorize]
-   public class AccountController : Controller
-   {
-       public ActionResult Login()
-       {
-       }
+## `[Authorize]` attribute
 
-       public ActionResult Logout()
-       {
-       }
-   }
-   ```
+In Blazor apps, specify the [`[Authorize]` attribute](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) at the top of a Razor component file (`.razor`). In the following example, only authenticated users can access the page:
 
-If you want to apply authorization to an action rather than the controller simply apply the `AuthorizeAttribute` attribute to the action itself;
+```razor
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 
-```csharp
-public class AccountController : Controller
-   {
-       public ActionResult Login()
-       {
-       }
+You can only see this if you're signed in.
+```
 
-       [Authorize]
-       public ActionResult Logout()
-       {
-       }
-   }
-   ```
+> [!IMPORTANT]
+> Only use the [`[Authorize]` attribute](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) on `@page` components reached via the Blazor router. Authorization is only performed as an aspect of routing and *not* for child components rendered within a page. To authorize the display of specific parts within a page, use an <xref:Microsoft.AspNetCore.Components.Authorization.AuthorizeView> component instead, which is described in <xref:blazor/security/index#authorizeview-component>.
 
-Now only authenticated users can access the logout function.
+The [`[Authorize]` attribute](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) can also be applied to all of the Razor components in a Blazor app or a subset of Razor components in a folder using an `_Imports` file (`_Imports.razor`). Add an [`@using`](xref:mvc/views/razor#using) directive for the <xref:Microsoft.AspNetCore.Authorization?displayProperty=fullName> namespace with an [`@attribute`](xref:mvc/views/razor#attribute) directive for the [`[Authorize]` attribute](xref:blazor/security/index#authorize-attribute):
 
-You can also use the `AllowAnonymousAttribute` attribute to allow access by non-authenticated users to individual actions; for example
+```razor
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+```
 
-```csharp
-[Authorize]
-   public class AccountController : Controller
-   {
-       [AllowAnonymous]
-       public ActionResult Login()
-       {
-       }
+The [`[Authorize]` attribute](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) also supports role-based or policy-based authorization. For role-based authorization, use the <xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute.Roles> parameter. In the following example, the user can only access the page if they're in the `Admin` or `Superuser` role:
 
-       public ActionResult Logout()
-       {
-       }
-   }
-   ```
+```razor
+@page "/"
+@attribute [Authorize(Roles = "Admin, Superuser")]
 
-This would allow only authenticated users to the `AccountController`, except for the `Login` action, which is accessible by everyone, regardless of their authenticated or unauthenticated / anonymous status.
+<p>You can only see this if you're in the 'Admin' or 'Superuser' role.</p>
+```
 
->[!WARNING]
-> `[AllowAnonymous]` bypasses all authorization statements. If you apply combine `[AllowAnonymous]` and any `[Authorize]` attribute then the Authorize attributes will always be ignored. For example if you apply `[AllowAnonymous]` at the controller level any `[Authorize]` attributes on the same controller, or on any action within it will be ignored.
+For policy-based authorization, use the <xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute.Policy> parameter. In the following example, the user can only access the page if they satisfy the requirements of the `Over21` [authorization policy](xref:security/authorization/policies):
+
+```razor
+@page "/"
+@attribute [Authorize(Policy = "Over21")]
+
+<p>You can only see this if you satisfy the 'Over21' policy.</p>
+```
+
+If neither <xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute.Roles> nor <xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute.Policy> is specified, [`[Authorize]`](xref:Microsoft.AspNetCore.Authorization.AuthorizeAttribute) uses the default policy:
+
+* Authenticated (signed-in) users are authorized.
+* Unauthenticated (signed-out) users are unauthorized.
+
+When the user isn't authorized and if the app doesn't [customize unauthorized content with the `Router` component](xref:blazor/security/index#customize-unauthorized-content-with-the-router-component), the framework automatically displays the following fallback message:
+
+```html
+Not authorized.
+```
+
+For more information on Blazor authentication and authorization, see <xref:blazor/security/index>.
+
+Use the [`[AllowAnonymous]` attribute](xref:Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute) to allow access by non-authenticated users to individual actions:
+
+```razor
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
+```
+
+For information on how to require authentication for all app users, see <xref:security/authorization/secure-data#require-authenticated-users>.
+
+## Additional resources
+
+* <xref:razor-pages/security/authorization/simple>
+* <xref:mvc/security/authorization/simple>
